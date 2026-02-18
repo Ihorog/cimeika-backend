@@ -1,9 +1,35 @@
+/**
+ * CORS Middleware Configuration
+ * Handles cross-origin requests
+ */
+
+import { cors as honoCors } from 'hono/cors';
 import type { Context, Next } from 'hono';
 import { CORS_ORIGINS } from '../lib/constants';
 import { isAllowedOrigin } from '../lib/utils';
 
 /**
- * CORS middleware
+ * Create CORS middleware
+ * Allow: localhost:3000/3001, cimeika.com.ua domains
+ */
+export const createCorsMiddleware = () => {
+  return honoCors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'https://cimeika.com.ua',
+      'https://*.cimeika.com.ua'
+    ],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+    exposeHeaders: ['X-RateLimit-Remaining', 'X-RateLimit-Reset'],
+    credentials: true,
+    maxAge: 86400
+  });
+};
+
+/**
+ * Legacy CORS middleware (for backward compatibility)
  * Handles Cross-Origin Resource Sharing
  */
 export async function cors(c: Context, next: Next): Promise<Response | void> {
