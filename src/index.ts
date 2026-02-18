@@ -3,7 +3,7 @@ import type { Env } from './types/env';
 import { cors, logging, rateLimit } from './middleware';
 import * as routers from './routers';
 // import * as agents from './agents';
-import { MESSAGES, CIMEIKA_RESOURCES } from './lib/constants';
+import { MESSAGES, CIMEIKA_RESOURCES, ERROR_CODES } from './lib/constants';
 
 /**
  * Main Hono application
@@ -60,6 +60,7 @@ app.get('/api/health', async (c) => {
       {
         status: 'unhealthy',
         message: MESSAGES.ERROR_GENERIC,
+        code: ERROR_CODES.GENERIC_ERROR,
         timestamp: Date.now(),
       },
       { status: 503 }
@@ -91,7 +92,10 @@ app.get('/api/status', async (c) => {
   } catch (error) {
     console.error('Status check failed:', error);
     return c.json(
-      { error: MESSAGES.ERROR_GENERIC },
+      {
+        error: MESSAGES.ERROR_GENERIC,
+        code: ERROR_CODES.GENERIC_ERROR,
+      },
       { status: 500 }
     );
   }
@@ -113,7 +117,10 @@ app.route('/api/gallery', routers.gallery);
  */
 app.notFound((c) => {
   return c.json(
-    { error: MESSAGES.ERROR_NOT_FOUND },
+    {
+      error: MESSAGES.ERROR_NOT_FOUND,
+      code: ERROR_CODES.NOT_FOUND,
+    },
     { status: 404 }
   );
 });
@@ -124,7 +131,10 @@ app.notFound((c) => {
 app.onError((err, c) => {
   console.error('Application error:', err);
   return c.json(
-    { error: MESSAGES.ERROR_GENERIC },
+    {
+      error: MESSAGES.ERROR_GENERIC,
+      code: ERROR_CODES.GENERIC_ERROR,
+    },
     { status: 500 }
   );
 });

@@ -76,3 +76,46 @@ export const MESSAGES = {
   HEALTH_DEGRADED: 'Система працює зі збоями',
   HEALTH_DOWN: 'Система недоступна',
 };
+
+/**
+ * Error codes for API responses
+ */
+export const ERROR_CODES = {
+  // General errors (1000-1999)
+  GENERIC_ERROR: 'ERR_1000',
+  NOT_FOUND: 'ERR_1001',
+  INVALID_REQUEST: 'ERR_1002',
+
+  // Authentication errors (2000-2999)
+  UNAUTHORIZED: 'ERR_2000',
+  INVALID_TOKEN: 'ERR_2001',
+  TOKEN_EXPIRED: 'ERR_2002',
+  FORBIDDEN: 'ERR_2003',
+
+  // Rate limiting errors (3000-3999)
+  RATE_LIMIT_EXCEEDED: 'ERR_3000',
+  TOO_MANY_REQUESTS: 'ERR_3001',
+
+  // Validation errors (4000-4999)
+  VALIDATION_ERROR: 'ERR_4000',
+  INVALID_JSON: 'ERR_4001',
+  MISSING_FIELD: 'ERR_4002',
+  INVALID_TYPE: 'ERR_4003',
+  OUT_OF_RANGE: 'ERR_4004',
+
+  // Agent errors (5000-5999)
+  AGENT_NOT_FOUND: 'ERR_5000',
+  AGENT_UNAVAILABLE: 'ERR_5001',
+  AGENT_TIMEOUT: 'ERR_5002',
+
+  // Database errors (6000-6999)
+  DATABASE_ERROR: 'ERR_6000',
+  QUERY_FAILED: 'ERR_6001',
+  CONNECTION_FAILED: 'ERR_6002',
+
+  // Storage errors (7000-7999)
+  STORAGE_ERROR: 'ERR_7000',
+  FILE_NOT_FOUND: 'ERR_7001',
+  FILE_TOO_LARGE: 'ERR_7002',
+  UPLOAD_FAILED: 'ERR_7003',
+};
