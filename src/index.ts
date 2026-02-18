@@ -3,7 +3,7 @@ import type { Env } from './types/env';
 import { cors, logging, rateLimit } from './middleware';
 import * as routers from './routers';
 // import * as agents from './agents';
-import { MESSAGES } from './lib/constants';
+import { MESSAGES, CIMEIKA_RESOURCES } from './lib/constants';
 
 /**
  * Main Hono application
@@ -25,6 +25,13 @@ app.get('/', (c) => {
     status: 'running',
     agents: ['ci', 'podiya', 'nastriy', 'malya', 'kazkar', 'kalendar', 'gallery'],
     message: 'Вітаємо в CIMEIKA Backend API',
+    resources: {
+      website: CIMEIKA_RESOURCES.WEBSITES.MAIN,
+      github: CIMEIKA_RESOURCES.GITHUB.ORGANIZATION,
+      huggingface: CIMEIKA_RESOURCES.HUGGINGFACE.ORGANIZATION,
+      api: CIMEIKA_RESOURCES.HUGGINGFACE.API,
+    },
+    documentation: '/api/docs',
   });
 });
 

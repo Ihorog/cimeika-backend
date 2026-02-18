@@ -2,6 +2,24 @@
 
 **7 Agents on Cloudflare Workers** | TypeScript + Hono + Agents SDK
 
+## Про Cimeika
+
+**Cimeika** - це екосистема інтелектуальних агентів для творчості та управління контентом.
+
+### Ресурси
+- 🌐 **Вебсайт:** [cimeika.com.ua](https://cimeika.com.ua) | [www.cimeika.com.ua](https://www.cimeika.com.ua)
+- 💻 **GitHub:** [@Ihorog](https://github.com/Ihorog)
+- 🤗 **HuggingFace:** [@Ihorog](https://huggingface.co/Ihorog) | [API](https://huggingface.co/spaces/Ihorog/cimeika-api)
+- 📧 **Контакти:** iglu963@gmail.com | cimeika.com.ua@gmail.com
+
+### Пов'язані проєкти
+- [cit](https://github.com/Ihorog/cit) - Центральний інтерфейс
+- [ciwiki](https://github.com/Ihorog/ciwiki) - Wiki система
+- [cimeika-unified](https://github.com/Ihorog/cimeika-unified) - Уніфікований інтерфейс
+- [cimeika-app](https://github.com/Ihorog/cimeika-app) - Мобільний застосунок
+- [alisa-pwa-4](https://github.com/Ihorog/alisa-pwa-4) - PWA застосунок
+- [media](https://github.com/Ihorog/media) - Медіа ресурси
+
 ## Агенти
 - 🧠 **Ci** - Оркестрація та моніторинг
 - 📅 **Подія** - Події та тригери
