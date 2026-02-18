@@ -1,0 +1,29 @@
+name: Health Check
+
+on:
+  schedule:
+    # Run every 5 minutes
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    name: Check Backend Health
+    steps:
+      - name: Health Check
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://cimeika-backend.workers.dev/api/health || echo "000")
+
+          if [ "$response" = "200" ]; then
+            echo "✅ Health check passed"
+          else
+            echo "❌ Health check failed with status: $response"
+            exit 1
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Health check failed - backend is down"
+          # Add notification logic here (Slack, Discord, etc.)
