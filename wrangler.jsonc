@@ -1,0 +1,44 @@
+{
+  "name": "cimeika-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2024-01-01",
+  
+  // Durable Objects - 7 Agents
+  "durable_objects": {
+    "bindings": [
+      { "name": "CI_AGENT", "class_name": "CiAgent" },
+      { "name": "PODIYA_AGENT", "class_name": "PodiyaAgent" },
+      { "name": "NASTRIY_AGENT", "class_name": "NastriyAgent" },
+      { "name": "MALYA_AGENT", "class_name": "MalyaAgent" },
+      { "name": "KAZKAR_AGENT", "class_name": "KazkarAgent" },
+      { "name": "KALENDAR_AGENT", "class_name": "KalendarAgent" },
+      { "name": "GALLERY_AGENT", "class_name": "GalleryAgent" }
+    ]
+  },
+
+  // KV Namespaces (IDs to be filled after wrangler kv:namespace create)
+  "kv_namespaces": [
+    { "binding": "CONFIG", "id": "" },
+    { "binding": "AUTH_TOKENS", "id": "" }
+  ],
+
+  // D1 Database (ID to be filled after wrangler d1 create)
+  "d1_databases": [
+    { "binding": "DB", "database_name": "cimeika", "database_id": "" }
+  ],
+
+  // R2 Buckets (name configured after wrangler r2 bucket create)
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "cimeika-files" }
+  ],
+
+  // Analytics Engine
+  "analytics_engine_datasets": [
+    { "binding": "ANALYTICS" }
+  ],
+
+  // Secrets (to be set via wrangler secret put)
+  "vars": {
+    "ENVIRONMENT": "production"
+  }
+}
