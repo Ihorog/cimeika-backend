@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { Env } from './types/env';
 import { cors, logging, rateLimit } from './middleware';
 import * as routers from './routers';
-// import * as agents from './agents';
 import { MESSAGES, CIMEIKA_RESOURCES, ERROR_CODES } from './lib/constants';
 
 /**
@@ -141,16 +140,14 @@ app.onError((err, c) => {
 
 /**
  * Export Durable Object classes
- * NOTE: Agent implementations temporarily removed during BaseAgent refactor
- * TODO: Re-implement agents using new BaseAgent class
  */
-// export { CiAgent } from './agents/ci-agent';
-// export { PodiyaAgent } from './agents/podiya-agent';
-// export { NastriyAgent } from './agents/nastriy-agent';
-// export { MalyaAgent } from './agents/malya-agent';
-// export { KazkarAgent } from './agents/kazkar-agent';
-// export { KalendarAgent } from './agents/kalendar-agent';
-// export { GalleryAgent } from './agents/gallery-agent';
+export { CiAgent } from './agents/ci-agent';
+export { PodiyaAgent } from './agents/podiya-agent';
+export { NastriyAgent } from './agents/nastriy-agent';
+export { MalyaAgent } from './agents/malya-agent';
+export { KazkarAgent } from './agents/kazkar-agent';
+export { KalendarAgent } from './agents/kalendar-agent';
+export { GalleryAgent } from './agents/gallery-agent';
 
 /**
  * Export default worker handler
