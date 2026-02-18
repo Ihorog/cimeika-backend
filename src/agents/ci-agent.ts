@@ -211,6 +211,17 @@ export class CiAgent extends BaseAgent {
       results[agentType] = 'pinged';
     }
 
+    return new Response(JSON.stringify({
+      status: 'ok',
+      results,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 200,
+      headers: {
+        'content-type': 'application/json'
+      }
+    });
+  }
   /**
    * Broadcast message to all agents
    */
