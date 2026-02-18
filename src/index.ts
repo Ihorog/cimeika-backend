@@ -93,13 +93,13 @@ app.get('/api/manifest', (c) => {
       status: 'GET /api/status',
       manifest: 'GET /api/manifest',
       agents: [
-        'GET/POST /api/agents/ci',
-        'GET/POST /api/agents/podiya',
-        'GET/POST /api/agents/nastriy',
-        'GET/POST /api/agents/malya',
-        'GET/POST /api/agents/kazkar',
-        'GET/POST /api/agents/kalendar',
-        'GET/POST /api/agents/gallery'
+        'GET /api/agents/ci/status, POST /api/agents/ci',
+        'GET /api/agents/podiya/status, POST /api/agents/podiya',
+        'GET /api/agents/nastriy/status, POST /api/agents/nastriy',
+        'GET /api/agents/malya/status, POST /api/agents/malya',
+        'GET /api/agents/kazkar/status, POST /api/agents/kazkar',
+        'GET /api/agents/kalendar/status, POST /api/agents/kalendar',
+        'GET /api/agents/gallery/status, POST /api/agents/gallery'
       ]
     },
     agents: {
