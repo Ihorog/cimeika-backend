@@ -1,0 +1,27 @@
+{
+  "name": "cimeika-backend",
+  "version": "0.1.0",
+  "description": "CIMEIKA Backend: 7 Agents on Cloudflare Workers",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "types": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts"
+  },
+  "dependencies": {
+    "agents": "latest",
+    "hono": "^4.0.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250106.0",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "wrangler": "^3.100.0"
+  }
+}
