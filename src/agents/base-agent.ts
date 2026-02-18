@@ -48,6 +48,9 @@ export abstract class BaseAgent<TState extends BaseAgentState> {
         this.agentState = this.getDefaultState();
         await this.setState(this.agentState);
       }
+
+      // Resume incomplete processes
+      await this.resumeIncompleteProcesses();
     } catch (error) {
       console.error('Failed to initialize agent:', error);
       this.agentState = this.getDefaultState();
@@ -308,7 +311,7 @@ export abstract class BaseAgent<TState extends BaseAgentState> {
     try {
       // Store message in events table
       await this.sqlExec(
-        'INSERT INTO events (id, agent_from, agent_to, message_type, payload, priority, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO events (id, agent_from, agent_to, message_type, payload, priority, processed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [
           message.id,
           message.from,
@@ -316,6 +319,7 @@ export abstract class BaseAgent<TState extends BaseAgentState> {
           message.type,
           JSON.stringify(message.payload),
           message.priority,
+          0,
           message.timestamp,
         ]
       );
@@ -334,6 +338,103 @@ export abstract class BaseAgent<TState extends BaseAgentState> {
   }
 
   /**
+   * Get pending (unprocessed) messages for this agent
+   * @param {number} limit - Maximum number of messages to retrieve
+   * @returns {Promise<AgentMessage[]>} Array of pending messages
+   */
+  protected async getPendingMessages(limit: number = 50): Promise<AgentMessage[]> {
+    try {
+      interface EventRow {
+        id: string;
+        agent_from: string;
+        agent_to: string;
+        message_type: string;
+        payload: string;
+        priority: string;
+        created_at: number;
+      }
+
+      const agentType = this.constructor.name.replace('Agent', '').toLowerCase();
+      const results = await this.sqlAll<EventRow>(
+        'SELECT id, agent_from, agent_to, message_type, payload, priority, created_at FROM events WHERE agent_to = ? AND processed = 0 ORDER BY priority DESC, created_at ASC LIMIT ?',
+        [agentType, limit]
+      );
+
+      return results.map((row) => ({
+        id: row.id,
+        from: row.agent_from as AgentMessage['from'],
+        to: row.agent_to as AgentMessage['to'],
+        type: row.message_type as AgentMessage['type'],
+        payload: JSON.parse(row.payload),
+        priority: row.priority as AgentMessage['priority'],
+        timestamp: row.created_at,
+      }));
+    } catch (error) {
+      console.error('Failed to get pending messages:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Mark message as processed
+   * @param {string} messageId - Message ID to mark as processed
+   * @returns {Promise<boolean>} Success status
+   */
+  protected async markMessageProcessed(messageId: string): Promise<boolean> {
+    try {
+      return await this.sqlExec(
+        'UPDATE events SET processed = 1, processed_at = ? WHERE id = ?',
+        [now(), messageId]
+      );
+    } catch (error) {
+      console.error('Failed to mark message as processed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Resume incomplete processes by processing pending messages
+   * @returns {Promise<number>} Number of messages processed
+   */
+  protected async resumeIncompleteProcesses(): Promise<number> {
+    try {
+      const pendingMessages = await this.getPendingMessages();
+      let processedCount = 0;
+
+      for (const message of pendingMessages) {
+        try {
+          // Process the message
+          await this.processMessage(message);
+
+          // Mark as processed
+          await this.markMessageProcessed(message.id);
+          processedCount++;
+
+          // Log analytics
+          await this.logAnalytics('message_resumed', message.to, {
+            messageId: message.id,
+            from: message.from,
+          });
+        } catch (error) {
+          console.error(`Failed to process message ${message.id}:`, error);
+          // Continue with next message even if this one fails
+        }
+      }
+
+      if (processedCount > 0) {
+        await this.logAnalytics('processes_resumed', this.constructor.name.replace('Agent', '').toLowerCase(), {
+          count: processedCount,
+        });
+      }
+
+      return processedCount;
+    } catch (error) {
+      console.error('Failed to resume incomplete processes:', error);
+      return 0;
+    }
+  }
+
+  /**
    * Process incoming message (can be overridden by subclasses)
    * @param {AgentMessage} message - Incoming message
    * @returns {Promise<Response>} Response
@@ -344,6 +445,11 @@ export abstract class BaseAgent<TState extends BaseAgentState> {
       lastActivity: now(),
       messageCount: this.agentState.messageCount + 1,
     } as Partial<TState>);
+
+    // Mark message as processed if it has an ID (from database)
+    if (_message.id) {
+      await this.markMessageProcessed(_message.id);
+    }
 
     return Response.json({
       success: true,
