@@ -41,12 +41,10 @@ export class CiAgent extends BaseAgent {
         // Backward compatibility with existing tests
         if (url.pathname.endsWith('/health')) {
           return this.jsonResponse({
-            agent: 'ci',
-            status: this.agentState.status,
-            uptime_seconds: Math.floor((Date.now() - this.startTime) / 1000),
-            message_count: this.agentState.message_count,
-            error_count: this.agentState.error_count,
-            timestamp: new Date().toISOString(),
+            success: true,
+            message: 'Оркестрація завершена',
+            agents: (await this.listAgents()).agents,
+            timestamp: new Date().toISOString()
           });
         }
         if (url.pathname.endsWith('/state')) {
@@ -213,11 +211,31 @@ export class CiAgent extends BaseAgent {
       results[agentType] = 'pinged';
     }
 
-    return this.jsonResponse({
-      success: true,
-      message: 'Оркестрація завершена',
-      agents: results,
-      timestamp: new Date().toISOString(),
-    });
+  /**
+   * Broadcast message to all agents
+   */
+  private async broadcast(payload: any): Promise<Record<string, any>> {
+    // TODO: Implement real Durable Object inter-agent messaging in B8
+    return {
+      action: 'broadcast',
+      status: 'queued',
+      targets: ['podiya', 'nastriy', 'malya', 'kazkar', 'kalendar', 'gallery'],
+      payload,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Get full system state
+   */
+  private async getSystemState(): Promise<Record<string, any>> {
+    return {
+      system: 'cimeika',
+      version: '0.1.0',
+      orchestrator: 'ci',
+      status: 'initializing',
+      agents: await this.listAgents(),
+      timestamp: new Date().toISOString()
+    };
   }
 }
