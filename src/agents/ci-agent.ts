@@ -38,12 +38,10 @@ export class CiAgent extends BaseAgent {
         if (url.pathname.endsWith('/agents')) {
           return this.jsonResponse(await this.listAgents());
         }
-        // Backward compatibility with existing tests
         if (url.pathname.endsWith('/health')) {
           return this.jsonResponse({
-            success: true,
-            message: 'Оркестрація завершена',
-            agents: (await this.listAgents()).agents,
+            agent: 'ci',
+            status: this.agentState.status,
             timestamp: new Date().toISOString()
           });
         }
@@ -212,6 +210,7 @@ export class CiAgent extends BaseAgent {
     }
 
     return new Response(JSON.stringify({
+      success: true,
       status: 'ok',
       results,
       timestamp: new Date().toISOString()
@@ -221,32 +220,5 @@ export class CiAgent extends BaseAgent {
         'content-type': 'application/json'
       }
     });
-  }
-  /**
-   * Broadcast message to all agents
-   */
-  private async broadcast(payload: any): Promise<Record<string, any>> {
-    // TODO: Implement real Durable Object inter-agent messaging in B8
-    return {
-      action: 'broadcast',
-      status: 'queued',
-      targets: ['podiya', 'nastriy', 'malya', 'kazkar', 'kalendar', 'gallery'],
-      payload,
-      timestamp: new Date().toISOString()
-    };
-  }
-
-  /**
-   * Get full system state
-   */
-  private async getSystemState(): Promise<Record<string, any>> {
-    return {
-      system: 'cimeika',
-      version: '0.1.0',
-      orchestrator: 'ci',
-      status: 'initializing',
-      agents: await this.listAgents(),
-      timestamp: new Date().toISOString()
-    };
   }
 }

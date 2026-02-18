@@ -110,6 +110,9 @@ export abstract class BaseAgent {
 
       const data = await this.processMessage(message);
 
+      // Save state after successful processing
+      await this.saveStateToDatabase();
+
       this.setStatus('ready');
       return {
         success: true,
@@ -120,6 +123,9 @@ export abstract class BaseAgent {
     } catch (error) {
       this.agentState.error_count++;
       this.setStatus('error');
+
+      // Save error state
+      await this.saveStateToDatabase();
 
       const errorMsg =
         error instanceof Error ? error.message : 'Unknown error';
@@ -153,6 +159,53 @@ export abstract class BaseAgent {
       (Date.now() - this.startTime) / 1000
     );
     return { ...this.agentState };
+  }
+
+  // ============================================
+  // STATE PERSISTENCE
+  // ============================================
+
+  /**
+   * Save agent state to database
+   */
+  async saveStateToDatabase(): Promise<void> {
+    try {
+      await this.executeDB(
+        `INSERT OR REPLACE INTO agent_states 
+         (agent_type, state_json, uptime_seconds, message_count, error_count, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          this.agentType,
+          JSON.stringify(this.agentState),
+          this.agentState.uptime_seconds,
+          this.agentState.message_count,
+          this.agentState.error_count,
+          new Date().toISOString()
+        ]
+      );
+    } catch (error) {
+      console.error(`Failed to save state for ${this.agentState.name}:`, error);
+    }
+  }
+
+  /**
+   * Load agent state from database
+   */
+  async loadStateFromDatabase(): Promise<void> {
+    try {
+      const result = await this.queryDB<{ state_json: string }>(
+        'SELECT state_json FROM agent_states WHERE agent_type = ?',
+        [this.agentType]
+      );
+
+      if (result.length > 0 && result[0].state_json) {
+        const savedState = JSON.parse(result[0].state_json);
+        this.agentState = { ...this.agentState, ...savedState };
+        console.log(`Loaded state for ${this.agentState.name}`);
+      }
+    } catch (error) {
+      console.error(`Failed to load state for ${this.agentType}:`, error);
+    }
   }
 
   // ============================================
