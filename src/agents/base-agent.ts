@@ -163,6 +163,61 @@ export abstract class BaseAgent<TState extends BaseAgentState> {
   }
 
   /**
+   * Execute batch SQL operations in a single transaction
+   * @param {Array<{ query: string; params: unknown[] }>} operations - Batch operations
+   * @returns {Promise<boolean>} Success status
+   */
+  protected async sqlBatch(
+    operations: Array<{ query: string; params: unknown[] }>
+  ): Promise<boolean> {
+    try {
+      const statements = operations.map((op) => {
+        const stmt = this.env.DB.prepare(op.query);
+        return op.params.length > 0 ? stmt.bind(...op.params) : stmt;
+      });
+      await this.env.DB.batch(statements);
+      return true;
+    } catch (error) {
+      console.error('SQL batch error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get query result count
+   * @param {string} query - SQL query (should include COUNT(*))
+   * @param {unknown[]} params - Query parameters
+   * @returns {Promise<number>} Row count
+   */
+  protected async sqlCount(query: string, params: unknown[] = []): Promise<number> {
+    try {
+      const result = await this.sql<{ count: number }>(query, params);
+      return result?.count || 0;
+    } catch (error) {
+      console.error('SQL count error:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Check if a record exists
+   * @param {string} table - Table name
+   * @param {string} column - Column name
+   * @param {unknown} value - Value to check
+   * @returns {Promise<boolean>} Existence status
+   */
+  protected async sqlExists(table: string, column: string, value: unknown): Promise<boolean> {
+    try {
+      const query = `SELECT COUNT(*) as count FROM ${table} WHERE ${column} = ?`;
+      const count = await this.sqlCount(query, [value]);
+      return count > 0;
+    } catch (error) {
+      console.error('SQL exists error:', error);
+      return false;
+    }
+  }
+
+  /**
    * Store file in R2 bucket
    * @param {string} key - File key
    * @param {string | ArrayBuffer} data - File data
