@@ -1,112 +1,199 @@
 /**
- * Agent type identifiers
+ * Agent Communication Protocol Types
+ * Defines message structure, states, and interfaces for inter-agent communication
  */
-export type AgentType = 'ci' | 'podiya' | 'nastriy' | 'malya' | 'kazkar' | 'kalendar' | 'gallery';
+
+// ============================================
+// TYPE DEFINITIONS
+// ============================================
+
+/**
+ * All available agent types in CIMEIKA
+ */
+export type AgentType =
+  | 'ci'        // Центр (Orchestrator)
+  | 'podiya'    // Подія (Event)
+  | 'nastriy'   // Настрій (Mood)
+  | 'malya'     // Маля (Ideas)
+  | 'kazkar'    // Казкар (Stories)
+  | 'kalendar'  // Календар (Calendar)
+  | 'gallery';  // Галерея (Gallery)
+
+/**
+ * Agent operational status
+ */
+export type AgentStatus =
+  | 'initializing'  // Starting up
+  | 'ready'         // Ready to process messages
+  | 'processing'    // Currently handling a message
+  | 'error'         // Error state
+  | 'sleeping';     // Inactive/dormant
+
+/**
+ * Message types for inter-agent communication
+ */
+export type MessageType =
+  | 'command'   // Action instruction
+  | 'query'     // Information request
+  | 'state'     // State synchronization
+  | 'action'    // Completed action notification
+  | 'notify';   // General notification
 
 /**
  * Message priority levels
  */
-export type MessagePriority = 'low' | 'medium' | 'high' | 'critical';
+export type MessagePriority =
+  | 'low'
+  | 'normal'
+  | 'high'
+  | 'critical';
+
+// ============================================
+// INTERFACES
+// ============================================
 
 /**
- * Message type identifiers
+ * Current state of an agent
+ * Updated continuously during agent runtime
  */
-export type MessageType = 'request' | 'response' | 'notification' | 'event' | 'command';
+export interface AgentState {
+  /** Unique agent instance ID */
+  id: string;
+
+  /** Display name (Українська) */
+  name: string;
+
+  /** Agent type */
+  type: AgentType;
+
+  /** Current operational status */
+  status: AgentStatus;
+
+  /** Version string (e.g., "0.1.0") */
+  version: string;
+
+  /** Seconds since agent started */
+  uptime_seconds: number;
+
+  /** Total messages processed */
+  message_count: number;
+
+  /** Total errors encountered */
+  error_count: number;
+
+  /** ISO timestamp of last activity */
+  last_activity: string;
+
+  /** ISO timestamp of next scheduled check */
+  next_check: string;
+}
 
 /**
- * Health status states
- */
-export type HealthState = 'healthy' | 'degraded' | 'unhealthy';
-
-/**
- * Inter-agent message protocol
+ * Message structure for inter-agent communication
  */
 export interface AgentMessage {
+  /** Message type (command, query, state, etc.) */
   type: MessageType;
-  from: AgentType;
-  to: AgentType;
-  payload: Record<string, unknown>;
-  priority: MessagePriority;
-  timestamp: number;
+
+  /** Sending agent type (optional) */
+  from?: AgentType;
+
+  /** Target agent type (optional) */
+  to?: AgentType;
+
+  /** Message payload data */
+  payload: Record<string, any>;
+
+  /** ISO timestamp when message created */
+  timestamp: string;
+
+  /** Unique message ID */
   id: string;
+
+  /** Message priority level (default: 'normal') */
+  priority?: MessagePriority;
 }
 
 /**
- * Agent health status
+ * Response from agent message processing
  */
-export interface HealthStatus {
-  status: HealthState;
-  message: string;
-  timestamp: number;
-  score: number;
-  details?: Record<string, unknown>;
+export interface AgentResponse {
+  /** Success/failure indicator */
+  success: boolean;
+
+  /** Response data (if successful) */
+  data?: Record<string, any>;
+
+  /** Error message (if failed) */
+  error?: string;
+
+  /** Human-readable message */
+  message?: string;
+
+  /** ISO timestamp of response */
+  timestamp: string;
+
+  /** Which agent generated this response */
+  agent?: AgentType;
 }
 
 /**
- * Base agent state (all agents inherit)
+ * Snapshot of agent state at a point in time
+ * Used for state persistence and recovery
  */
-export interface BaseAgentState {
-  initialized: boolean;
-  lastActivity: number;
-  messageCount: number;
-  errorCount: number;
+export interface StateSnapshot {
+  /** Agent type */
+  agent: AgentType;
+
+  /** When snapshot was taken */
+  timestamp: string;
+
+  /** Agent state data */
+  state: Record<string, any>;
+
+  /** State schema version */
+  version: string;
 }
 
-/**
- * Ci Agent state (orchestrator)
- */
-export interface CiAgentState extends BaseAgentState {
-  activeAgents: AgentType[];
-  systemHealth: HealthState;
-  lastHealthCheck: number;
-}
+// ============================================
+// CONSTANTS
+// ============================================
 
 /**
- * Podiya Agent state (events)
+ * Human-readable names for each agent (Українська)
  */
-export interface PodiyaAgentState extends BaseAgentState {
-  events: Array<{ id: string; type: string; timestamp: number }>;
-  activeListeners: number;
-}
+export const AGENT_NAMES: Record<AgentType, string> = {
+  ci: 'Ci',
+  podiya: 'Подія',
+  nastriy: 'Настрій',
+  malya: 'Маля',
+  kazkar: 'Казкар',
+  kalendar: 'Календар',
+  gallery: 'Галерея'
+};
 
 /**
- * Nastriy Agent state (moods)
+ * Agent descriptions (Українська)
  */
-export interface NastriyAgentState extends BaseAgentState {
-  currentMood: string;
-  moodHistory: Array<{ mood: string; timestamp: number }>;
-  moodScore: number;
-}
+export const AGENT_DESCRIPTIONS: Record<AgentType, string> = {
+  ci: 'Центр керування та оркестрація',
+  podiya: 'Майбутнє та події',
+  nastriy: 'Емоційні стани та контекст',
+  malya: 'Ідеї та альтернативи',
+  kazkar: 'Історії та наратив',
+  kalendar: 'Час та ритми',
+  gallery: 'Візуальний архів'
+};
 
 /**
- * Malya Agent state (ideas)
+ * All agent types as array (for iteration)
  */
-export interface MalyaAgentState extends BaseAgentState {
-  ideas: Array<{ id: string; content: string; timestamp: number }>;
-  activeIdeaCount: number;
-}
-
-/**
- * Kazkar Agent state (stories)
- */
-export interface KazkarAgentState extends BaseAgentState {
-  stories: Array<{ id: string; title: string; timestamp: number }>;
-  totalStories: number;
-}
-
-/**
- * Kalendar Agent state (time)
- */
-export interface KalendarAgentState extends BaseAgentState {
-  scheduledEvents: Array<{ id: string; time: number; description: string }>;
-  timezone: string;
-}
-
-/**
- * Gallery Agent state (media/R2)
- */
-export interface GalleryAgentState extends BaseAgentState {
-  mediaCount: number;
-  totalSize: number;
-  lastUpload: number;
-}
+export const ALL_AGENT_TYPES: AgentType[] = [
+  'ci',
+  'podiya',
+  'nastriy',
+  'malya',
+  'kazkar',
+  'kalendar',
+  'gallery'
+];
