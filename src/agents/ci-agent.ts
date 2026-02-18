@@ -1,12 +1,11 @@
 /**
- * Ci Agent - Central Orchestrator
- * Coordinates all other agents, monitors system health, manages workflows
+ * Ci Agent - Центр керування та оркестрація
+ * Module: CI (Central Intelligence)
+ * Responsibility: System orchestration, agent coordination, health monitoring
  */
 
 import { BaseAgent } from './base-agent';
-import type { Env } from '../types/env';
-import type { AgentMessage } from '../types/agents';
-import { ALL_AGENT_TYPES } from '../types/agents';
+import type { Env, AgentMessage } from '../types';
 
 export class CiAgent extends BaseAgent {
   constructor(state: DurableObjectState, env: Env) {
@@ -14,90 +13,137 @@ export class CiAgent extends BaseAgent {
     this.setStatus('ready');
   }
 
+  /**
+   * HTTP request handler
+   */
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    const path = url.pathname;
 
     try {
-      switch (path) {
-        case '/health':
+      if (request.method === 'POST') {
+        if (url.pathname.endsWith('/orchestrate')) {
+          // Legacy endpoint for backward compatibility
           return this.jsonResponse({
-            agent: 'ci',
-            status: this.agentState.status,
-            uptime_seconds: Math.floor((Date.now() - this.startTime) / 1000),
-            message_count: this.agentState.message_count,
-            error_count: this.agentState.error_count,
-            timestamp: new Date().toISOString(),
+            success: true,
+            message: 'Оркестрація завершена',
+            agents: (await this.listAgents()).agents,
+            timestamp: new Date().toISOString()
           });
-
-        case '/state':
-          return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
-
-        case '/orchestrate':
-          if (request.method !== 'POST') {
-            return this.errorResponse('Method not allowed', 405);
-          }
-          return this.handleOrchestrate();
-
-        case '/message':
-          if (request.method !== 'POST') {
-            return this.errorResponse('Method not allowed', 405);
-          }
-          return this.handleIncomingMessage(request);
-
-        default:
-          return this.errorResponse('Not found', 404);
+        }
+        const message = await request.json() as AgentMessage;
+        const response = await this.handleMessage(message);
+        return this.jsonResponse(response as unknown as Record<string, unknown>);
       }
+
+      if (request.method === 'GET') {
+        if (url.pathname.endsWith('/status') || url.pathname.endsWith('/state')) {
+          return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
+        }
+        if (url.pathname.endsWith('/health')) {
+          return this.jsonResponse(await this.healthCheck());
+        }
+        if (url.pathname.endsWith('/agents')) {
+          return this.jsonResponse(await this.listAgents());
+        }
+      }
+
+      return this.errorResponse('Не знайдено', 404);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[CiAgent] fetch error: ${msg}`);
-      return this.errorResponse(msg);
+      return this.errorResponse(
+        error instanceof Error ? error.message : 'Невідома помилка',
+        500
+      );
     }
   }
 
-  protected async processMessage(
-    message: AgentMessage
-  ): Promise<Record<string, any>> {
-    const action = message.payload?.action;
+  /**
+   * Process incoming messages
+   */
+  protected async processMessage(message: AgentMessage): Promise<Record<string, any>> {
+    const { payload } = message;
+    const action = payload?.action;
 
     switch (action) {
-      case 'status_report':
-        return { agents: ALL_AGENT_TYPES, status: 'operational' };
-
-      case 'health_check':
-        return {
-          system: 'healthy',
-          timestamp: new Date().toISOString(),
-        };
-
+      case 'health-check':
+      case 'health_check': // Legacy compatibility
+        return await this.healthCheck();
+      case 'list-agents':
+        return await this.listAgents();
+      case 'status_report': // Legacy compatibility
+        return { agents: ['ci', 'podiya', 'nastriy', 'malya', 'kazkar', 'kalendar', 'gallery'], status: 'operational' };
+      case 'broadcast':
+        return await this.broadcast(payload);
+      case 'get-system-state':
+        return await this.getSystemState();
       default:
-        return {
-          received: true,
-          action: action ?? 'unknown',
-          timestamp: new Date().toISOString(),
-        };
+        throw new Error(`Невідома дія: ${action}`);
     }
   }
 
-  private async handleOrchestrate(): Promise<Response> {
-    const results: Record<string, string> = {};
-
-    for (const agentType of ALL_AGENT_TYPES) {
-      if (agentType === 'ci') continue;
-      results[agentType] = 'pinged';
-    }
-
-    return this.jsonResponse({
-      success: true,
-      message: 'Оркестрація завершена',
-      agents: results,
+  /**
+   * System health check
+   */
+  private async healthCheck(): Promise<Record<string, any>> {
+    return {
+      agent: 'ci',
+      status: this.agentState.status,
       timestamp: new Date().toISOString(),
-    });
+      uptime: this.getUptime(),
+      message: 'Система працює'
+    };
   }
 
-  private async handleIncomingMessage(request: Request): Promise<Response> {
-    const message = (await request.json()) as AgentMessage;
-    const result = await this.handleMessage(message);
-    return this.jsonResponse(result as unknown as Record<string, unknown>);
+  /**
+   * List all registered agents and their status
+   * NOTE: Currently returns hardcoded data. Will be replaced with real
+   * Durable Object queries in B8 for actual agent status.
+   */
+  private async listAgents(): Promise<Record<string, any>> {
+    const agents = [
+      { id: 'ci', name: 'Ci', role: 'Центр керування та оркестрація', status: 'active' },
+      { id: 'podiya', name: 'Подія', role: 'Майбутнє та події', status: 'ready' },
+      { id: 'nastriy', name: 'Настрій', role: 'Емоційні стани та контекст', status: 'ready' },
+      { id: 'malya', name: 'Маля', role: 'Ідеї та альтернативи', status: 'ready' },
+      { id: 'kazkar', name: 'Казкар', role: 'Історії та наратив', status: 'ready' },
+      { id: 'kalendar', name: 'Календар', role: 'Час та ритми', status: 'ready' },
+      { id: 'gallery', name: 'Галерея', role: 'Візуальний архів', status: 'ready' }
+    ];
+
+    return { agents, count: agents.length, timestamp: new Date().toISOString() };
+  }
+
+  /**
+   * Broadcast message to all agents
+   */
+  private async broadcast(payload: any): Promise<Record<string, any>> {
+    // TODO: Implement real Durable Object inter-agent messaging in B8
+    return {
+      action: 'broadcast',
+      status: 'queued',
+      targets: ['podiya', 'nastriy', 'malya', 'kazkar', 'kalendar', 'gallery'],
+      payload,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Get full system state
+   */
+  private async getSystemState(): Promise<Record<string, any>> {
+    return {
+      system: 'cimeika',
+      version: '0.1.0',
+      orchestrator: 'ci',
+      status: 'initializing',
+      agents: await this.listAgents(),
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Calculate uptime in seconds
+   */
+  private getUptime(): number {
+    return Math.floor((Date.now() - this.startTime) / 1000);
   }
 }
