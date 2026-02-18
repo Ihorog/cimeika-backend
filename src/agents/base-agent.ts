@@ -1,509 +1,364 @@
-import type { Env, DurableObjectState } from '../types/env';
-import type { AgentMessage, HealthStatus, BaseAgentState } from '../types/agents';
-import { generateId, now } from '../lib/utils';
-import { MESSAGES } from '../lib/constants';
+/**
+ * Base Agent Class
+ * Abstract base class for all 7 CIMEIKA agents
+ *
+ * Provides:
+ * - Message handling framework
+ * - State management with persistence
+ * - Storage access (KV, D1, R2)
+ * - Analytics logging
+ * - Error handling and recovery
+ */
+
+import type { Env } from '../types/env';
+import type {
+  AgentType,
+  AgentStatus,
+  AgentMessage,
+  AgentResponse,
+  AgentState
+} from '../types/agents';
+import { AGENT_NAMES } from '../types/agents';
 
 /**
  * Abstract base class for all agents
- * Provides common functionality for KV, DB, R2, and Analytics operations
+ * Subclasses must implement:
+ * - fetch() - HTTP request handler
+ * - processMessage() - Message processing logic
  */
-export abstract class BaseAgent<TState extends BaseAgentState> {
+export abstract class BaseAgent {
+  /** Durable Object state for persistent storage */
   protected state: DurableObjectState;
-  protected env: Env;
-  protected agentState: TState;
 
-  constructor(state: DurableObjectState, env: Env) {
+  /** Cloudflare Worker environment bindings */
+  protected env: Env;
+
+  /** Agent type identifier */
+  protected agentType: AgentType;
+
+  /** Current agent runtime state */
+  protected agentState: AgentState;
+
+  /** Timestamp when agent was instantiated */
+  protected startTime: number;
+
+  /**
+   * Initialize agent with Durable Object state and environment
+   * @param state - Durable Object state
+   * @param env - Cloudflare Worker environment
+   * @param agentType - Type identifier for this agent
+   */
+  constructor(
+    state: DurableObjectState,
+    env: Env,
+    agentType: AgentType
+  ) {
     this.state = state;
     this.env = env;
-    this.agentState = this.getDefaultState();
+    this.agentType = agentType;
+    this.startTime = Date.now();
+
+    this.agentState = {
+      id: state.id.toString(),
+      name: AGENT_NAMES[agentType],
+      type: agentType,
+      status: 'initializing',
+      version: '0.1.0',
+      uptime_seconds: 0,
+      message_count: 0,
+      error_count: 0,
+      last_activity: new Date().toISOString(),
+      next_check: new Date(Date.now() + 60000).toISOString()
+    };
   }
 
-  /**
-   * Get default state for agent (must be implemented by subclasses)
-   * @returns {TState} Default state
-   */
-  protected abstract getDefaultState(): TState;
+  // ============================================
+  // ABSTRACT METHODS
+  // ============================================
 
   /**
-   * Calculate agent health score (must be implemented by subclasses)
-   * @returns {Promise<number>} Score between 0 and 1
+   * Main HTTP request handler — must be implemented by each agent subclass
+   * @param request - Incoming HTTP request
+   * @returns HTTP response
    */
-  protected abstract calculateScore(): Promise<number>;
+  abstract fetch(request: Request): Promise<Response>;
 
   /**
-   * Check agent health (must be implemented by subclasses)
-   * @returns {Promise<HealthStatus>} Health status
+   * Process an incoming inter-agent message — must be implemented by subclass
+   * @param message - The agent message to process
+   * @returns Processed data as a record
    */
-  public abstract checkHealth(): Promise<HealthStatus>;
+  protected abstract processMessage(
+    message: AgentMessage
+  ): Promise<Record<string, any>>;
+
+  // ============================================
+  // PUBLIC METHODS
+  // ============================================
 
   /**
-   * Initialize agent state from storage
+   * Handle an incoming message with full error handling and state management.
+   * Wraps processMessage() with try/catch, counters, status transitions, analytics.
+   * @param message - The agent message to handle
+   * @returns Agent response with success/failure and data
    */
-  protected async initialize(): Promise<void> {
+  async handleMessage(message: AgentMessage): Promise<AgentResponse> {
     try {
-      const stored = await this.state.storage.get<TState>('state');
-      if (stored) {
-        this.agentState = stored;
-      } else {
-        this.agentState = this.getDefaultState();
-        await this.setState(this.agentState);
+      this.agentState.message_count++;
+      this.agentState.last_activity = new Date().toISOString();
+      this.setStatus('processing');
+
+      const data = await this.processMessage(message);
+
+      this.setStatus('ready');
+      return {
+        success: true,
+        data,
+        agent: this.agentType,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      this.agentState.error_count++;
+      this.setStatus('error');
+
+      const errorMsg =
+        error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[${this.agentState.name}] Error:`, errorMsg);
+
+      try {
+        await this.logAnalytics('error', {
+          agent: this.agentType,
+          message: errorMsg,
+          timestamp: new Date().toISOString()
+        });
+      } catch (_analyticsError) {
+        console.error('Analytics logging failed:', _analyticsError);
       }
 
-      // Resume incomplete processes
-      await this.resumeIncompleteProcesses();
-    } catch (error) {
-      console.error('Failed to initialize agent:', error);
-      this.agentState = this.getDefaultState();
+      return {
+        success: false,
+        error: errorMsg,
+        agent: this.agentType,
+        timestamp: new Date().toISOString()
+      };
     }
   }
 
   /**
-   * Update agent state in storage
-   * @param {Partial<TState>} updates - State updates
+   * Get current agent state with calculated uptime
+   * @returns Current agent state snapshot
    */
-  protected async setState(updates: Partial<TState>): Promise<void> {
-    try {
-      this.agentState = { ...this.agentState, ...updates };
-      await this.state.storage.put('state', this.agentState);
-    } catch (error) {
-      console.error('Failed to set state:', error);
-      throw error;
-    }
+  getState(): AgentState {
+    this.agentState.uptime_seconds = Math.floor(
+      (Date.now() - this.startTime) / 1000
+    );
+    return { ...this.agentState };
   }
 
+  // ============================================
+  // STORAGE: KV
+  // ============================================
+
   /**
-   * Get value from KV namespace
-   * @param {string} key - KV key
-   * @param {KVNamespace} namespace - KV namespace (default: CONFIG)
-   * @returns {Promise<string | null>} Value or null
+   * Get a JSON-parsed value from KV namespace
+   * @param key - KV key to retrieve
+   * @returns Parsed value or null
    */
-  protected async getKV(
-    key: string,
-    namespace: KVNamespace = this.env.CONFIG
-  ): Promise<string | null> {
+  protected async getFromKV<T = unknown>(key: string): Promise<T | null> {
     try {
-      return await namespace.get(key);
+      const value = await this.env.CONFIG.get(key);
+      return value ? (JSON.parse(value) as T) : null;
     } catch (error) {
-      console.error(`KV get error for key ${key}:`, error);
+      console.error(`KV get failed for key '${key}':`, error);
       return null;
     }
   }
 
   /**
-   * Set value in KV namespace
-   * @param {string} key - KV key
-   * @param {string} value - Value to store
-   * @param {number} ttl - TTL in seconds (optional)
-   * @param {KVNamespace} namespace - KV namespace (default: CONFIG)
+   * Save a JSON value to KV namespace
+   * @param key - KV key
+   * @param value - Value to store (will be JSON.stringified)
+   * @param expirationTtl - Optional TTL in seconds
    */
-  protected async setKV(
+  protected async saveToKV(
     key: string,
-    value: string,
-    ttl?: number,
-    namespace: KVNamespace = this.env.CONFIG
+    value: Record<string, unknown>,
+    expirationTtl?: number
   ): Promise<void> {
     try {
-      const options = ttl ? { expirationTtl: ttl } : undefined;
-      await namespace.put(key, value, options);
+      const options: KVNamespacePutOptions = {};
+      if (expirationTtl !== undefined) {
+        options.expirationTtl = expirationTtl;
+      }
+      await this.env.CONFIG.put(key, JSON.stringify(value), options);
     } catch (error) {
-      console.error(`KV set error for key ${key}:`, error);
+      console.error(`KV put failed for key '${key}':`, error);
+    }
+  }
+
+  /**
+   * Delete a key from KV namespace
+   * @param key - KV key to delete
+   */
+  protected async deleteFromKV(key: string): Promise<void> {
+    try {
+      await this.env.CONFIG.delete(key);
+    } catch (error) {
+      console.error(`KV delete failed for key '${key}':`, error);
+    }
+  }
+
+  // ============================================
+  // STORAGE: D1 DATABASE
+  // ============================================
+
+  /**
+   * Run a SELECT query on D1 database
+   * @param sql - SQL query string
+   * @param params - Bind parameters
+   * @returns Array of result rows
+   */
+  protected async queryDB<T = unknown>(
+    sql: string,
+    params?: unknown[]
+  ): Promise<T[]> {
+    try {
+      const stmt = this.env.DB.prepare(sql);
+      const bound = params ? stmt.bind(...params) : stmt;
+      const result = await bound.all<T>();
+      return result.results ?? [];
+    } catch (error) {
+      console.error('DB query failed:', error);
       throw error;
     }
   }
 
   /**
-   * Execute SQL query on D1 database
-   * @param {string} query - SQL query
-   * @param {unknown[]} params - Query parameters
-   * @returns {Promise<T | null>} Query result
+   * Run an INSERT/UPDATE/DELETE statement on D1 database
+   * @param sql - SQL statement string
+   * @param params - Bind parameters
+   * @returns D1 run result
    */
-  protected async sql<T>(query: string, params: unknown[] = []): Promise<T | null> {
+  protected async executeDB(
+    sql: string,
+    params?: unknown[]
+  ): Promise<D1Result> {
     try {
-      const stmt = this.env.DB.prepare(query);
-      const bound = params.length > 0 ? stmt.bind(...params) : stmt;
-      const result = await bound.first<T>();
-      return result;
+      const stmt = this.env.DB.prepare(sql);
+      const bound = params ? stmt.bind(...params) : stmt;
+      return await bound.run();
     } catch (error) {
-      console.error('SQL query error:', error);
-      return null;
+      console.error('DB execute failed:', error);
+      throw error;
     }
   }
 
-  /**
-   * Execute SQL query and return all results
-   * @param {string} query - SQL query
-   * @param {unknown[]} params - Query parameters
-   * @returns {Promise<T[]>} Query results
-   */
-  protected async sqlAll<T>(query: string, params: unknown[] = []): Promise<T[]> {
-    try {
-      const stmt = this.env.DB.prepare(query);
-      const bound = params.length > 0 ? stmt.bind(...params) : stmt;
-      const result = await bound.all<T>();
-      return result.results || [];
-    } catch (error) {
-      console.error('SQL query all error:', error);
-      return [];
-    }
-  }
+  // ============================================
+  // STORAGE: R2
+  // ============================================
 
   /**
-   * Execute SQL command (INSERT, UPDATE, DELETE)
-   * @param {string} query - SQL command
-   * @param {unknown[]} params - Query parameters
-   * @returns {Promise<boolean>} Success status
+   * Upload a file to R2 bucket
+   * @param key - R2 object key (path)
+   * @param body - File content
+   * @param contentType - MIME type (default: application/octet-stream)
    */
-  protected async sqlExec(query: string, params: unknown[] = []): Promise<boolean> {
-    try {
-      const stmt = this.env.DB.prepare(query);
-      const bound = params.length > 0 ? stmt.bind(...params) : stmt;
-      await bound.run();
-      return true;
-    } catch (error) {
-      console.error('SQL exec error:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Execute batch SQL operations in a single transaction
-   * @param {Array<{ query: string; params: unknown[] }>} operations - Batch operations
-   * @returns {Promise<boolean>} Success status
-   */
-  protected async sqlBatch(
-    operations: Array<{ query: string; params: unknown[] }>
-  ): Promise<boolean> {
-    try {
-      const statements = operations.map((op) => {
-        const stmt = this.env.DB.prepare(op.query);
-        return op.params.length > 0 ? stmt.bind(...op.params) : stmt;
-      });
-      await this.env.DB.batch(statements);
-      return true;
-    } catch (error) {
-      console.error('SQL batch error:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Get query result count
-   * @param {string} query - SQL query (should include COUNT(*))
-   * @param {unknown[]} params - Query parameters
-   * @returns {Promise<number>} Row count
-   */
-  protected async sqlCount(query: string, params: unknown[] = []): Promise<number> {
-    try {
-      const result = await this.sql<{ count: number }>(query, params);
-      return result?.count || 0;
-    } catch (error) {
-      console.error('SQL count error:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Check if a record exists
-   * @param {string} table - Table name
-   * @param {string} column - Column name
-   * @param {unknown} value - Value to check
-   * @returns {Promise<boolean>} Existence status
-   */
-  protected async sqlExists(table: string, column: string, value: unknown): Promise<boolean> {
-    try {
-      const query = `SELECT COUNT(*) as count FROM ${table} WHERE ${column} = ?`;
-      const count = await this.sqlCount(query, [value]);
-      return count > 0;
-    } catch (error) {
-      console.error('SQL exists error:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Store file in R2 bucket
-   * @param {string} key - File key
-   * @param {string | ArrayBuffer} data - File data
-   * @param {Record<string, string>} metadata - Optional metadata
-   * @returns {Promise<boolean>} Success status
-   */
-  protected async storeFile(
+  protected async uploadToR2(
     key: string,
-    data: string | ArrayBuffer,
-    metadata?: Record<string, string>
-  ): Promise<boolean> {
+    body: ReadableStream | ArrayBuffer | string,
+    contentType?: string
+  ): Promise<void> {
     try {
-      const options = metadata ? { customMetadata: metadata } : undefined;
-      await this.env.FILES.put(key, data, options);
-      return true;
+      await this.env.FILES.put(key, body, {
+        httpMetadata: {
+          contentType: contentType ?? 'application/octet-stream'
+        }
+      });
     } catch (error) {
-      console.error(`R2 store error for key ${key}:`, error);
-      return false;
+      console.error(`R2 upload failed for key '${key}':`, error);
+      throw error;
     }
   }
 
   /**
-   * Retrieve file from R2 bucket
-   * @param {string} key - File key
-   * @returns {Promise<R2ObjectBody | null>} File object or null
+   * Download a file from R2 bucket
+   * @param key - R2 object key (path)
+   * @returns File content as ArrayBuffer or null if not found
    */
-  protected async getFile(key: string): Promise<R2ObjectBody | null> {
+  protected async downloadFromR2(key: string): Promise<ArrayBuffer | null> {
     try {
-      return await this.env.FILES.get(key);
+      const object = await this.env.FILES.get(key);
+      return object ? await object.arrayBuffer() : null;
     } catch (error) {
-      console.error(`R2 get error for key ${key}:`, error);
+      console.error(`R2 download failed for key '${key}':`, error);
       return null;
     }
   }
 
-  /**
-   * Delete file from R2 bucket
-   * @param {string} key - File key
-   * @returns {Promise<boolean>} Success status
-   */
-  protected async deleteFile(key: string): Promise<boolean> {
-    try {
-      await this.env.FILES.delete(key);
-      return true;
-    } catch (error) {
-      console.error(`R2 delete error for key ${key}:`, error);
-      return false;
-    }
-  }
+  // ============================================
+  // ANALYTICS
+  // ============================================
 
   /**
-   * Log analytics event
-   * @param {string} event - Event name
-   * @param {string} agent - Agent name
-   * @param {Record<string, unknown>} data - Event data
+   * Write an event to Cloudflare Analytics Engine
+   * @param event - Event name
+   * @param data - Event data
    */
   protected async logAnalytics(
     event: string,
-    agent: string,
-    data?: Record<string, unknown>
+    data: Record<string, unknown>
   ): Promise<void> {
+    if (!this.env.ANALYTICS) return;
+
     try {
-      // Log to Analytics Engine
       this.env.ANALYTICS.writeDataPoint({
-        blobs: [event, agent],
-        doubles: [now()],
-        indexes: [event],
+        indexes: [this.agentType, event],
+        blobs: [JSON.stringify(data)],
+        doubles: [Date.now()]
       });
-
-      // Also store in D1 for querying
-      const id = generateId();
-      const dataJson = data ? JSON.stringify(data) : null;
-      await this.sqlExec(
-        'INSERT INTO analytics (id, event, agent, data, timestamp) VALUES (?, ?, ?, ?, ?)',
-        [id, event, agent, dataJson, now()]
-      );
     } catch (error) {
-      console.error('Analytics logging error:', error);
+      console.error('Analytics write failed:', error);
     }
   }
 
+  // ============================================
+  // HELPERS
+  // ============================================
+
   /**
-   * Send message to another agent
-   * @param {AgentMessage} message - Message to send
-   * @returns {Promise<boolean>} Success status
+   * Set the agent's operational status
+   * @param status - New status
    */
-  protected async sendMessage(message: AgentMessage): Promise<boolean> {
-    try {
-      // Store message in events table
-      await this.sqlExec(
-        'INSERT INTO events (id, agent_from, agent_to, message_type, payload, priority, processed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          message.id,
-          message.from,
-          message.to,
-          message.type,
-          JSON.stringify(message.payload),
-          message.priority,
-          0,
-          message.timestamp,
-        ]
-      );
-
-      // Log analytics
-      await this.logAnalytics('message_sent', message.from, {
-        to: message.to,
-        type: message.type,
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Send message error:', error);
-      return false;
-    }
+  protected setStatus(status: AgentStatus): void {
+    this.agentState.status = status;
   }
 
   /**
-   * Get pending (unprocessed) messages for this agent
-   * @param {number} limit - Maximum number of messages to retrieve
-   * @returns {Promise<AgentMessage[]>} Array of pending messages
+   * Create a JSON HTTP response
+   * @param data - Response body
+   * @param status - HTTP status code (default: 200)
+   * @returns Response object
    */
-  protected async getPendingMessages(limit: number = 50): Promise<AgentMessage[]> {
-    try {
-      interface EventRow {
-        id: string;
-        agent_from: string;
-        agent_to: string;
-        message_type: string;
-        payload: string;
-        priority: string;
-        created_at: number;
-      }
-
-      const agentType = this.constructor.name.replace('Agent', '').toLowerCase();
-      const results = await this.sqlAll<EventRow>(
-        'SELECT id, agent_from, agent_to, message_type, payload, priority, created_at FROM events WHERE agent_to = ? AND processed = 0 ORDER BY priority DESC, created_at ASC LIMIT ?',
-        [agentType, limit]
-      );
-
-      return results.map((row) => ({
-        id: row.id,
-        from: row.agent_from as AgentMessage['from'],
-        to: row.agent_to as AgentMessage['to'],
-        type: row.message_type as AgentMessage['type'],
-        payload: JSON.parse(row.payload),
-        priority: row.priority as AgentMessage['priority'],
-        timestamp: row.created_at,
-      }));
-    } catch (error) {
-      console.error('Failed to get pending messages:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Mark message as processed
-   * @param {string} messageId - Message ID to mark as processed
-   * @returns {Promise<boolean>} Success status
-   */
-  protected async markMessageProcessed(messageId: string): Promise<boolean> {
-    try {
-      return await this.sqlExec(
-        'UPDATE events SET processed = 1, processed_at = ? WHERE id = ?',
-        [now(), messageId]
-      );
-    } catch (error) {
-      console.error('Failed to mark message as processed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Resume incomplete processes by processing pending messages
-   * @returns {Promise<number>} Number of messages processed
-   */
-  protected async resumeIncompleteProcesses(): Promise<number> {
-    try {
-      const pendingMessages = await this.getPendingMessages();
-      let processedCount = 0;
-
-      for (const message of pendingMessages) {
-        try {
-          // Process the message
-          await this.processMessage(message);
-
-          // Mark as processed
-          await this.markMessageProcessed(message.id);
-          processedCount++;
-
-          // Log analytics
-          await this.logAnalytics('message_resumed', message.to, {
-            messageId: message.id,
-            from: message.from,
-          });
-        } catch (error) {
-          console.error(`Failed to process message ${message.id}:`, error);
-          // Continue with next message even if this one fails
-        }
-      }
-
-      if (processedCount > 0) {
-        await this.logAnalytics('processes_resumed', this.constructor.name.replace('Agent', '').toLowerCase(), {
-          count: processedCount,
-        });
-      }
-
-      return processedCount;
-    } catch (error) {
-      console.error('Failed to resume incomplete processes:', error);
-      return 0;
-    }
-  }
-
-  /**
-   * Process incoming message (can be overridden by subclasses)
-   * @param {AgentMessage} message - Incoming message
-   * @returns {Promise<Response>} Response
-   */
-  protected async processMessage(_message: AgentMessage): Promise<Response> {
-    // Default implementation - subclasses should override
-    await this.setState({
-      lastActivity: now(),
-      messageCount: this.agentState.messageCount + 1,
-    } as Partial<TState>);
-
-    // Mark message as processed if it has an ID (from database)
-    if (_message.id) {
-      await this.markMessageProcessed(_message.id);
-    }
-
-    return Response.json({
-      success: true,
-      message: MESSAGES.SUCCESS,
+  protected jsonResponse(
+    data: Record<string, unknown>,
+    status: number = 200
+  ): Response {
+    return new Response(JSON.stringify(data), {
+      status,
+      headers: { 'Content-Type': 'application/json' }
     });
   }
 
   /**
-   * Handle HTTP fetch request (Durable Object handler)
-   * @param {Request} request - HTTP request
-   * @returns {Promise<Response>} HTTP response
+   * Create an error HTTP response
+   * @param message - Error message
+   * @param status - HTTP status code (default: 500)
+   * @returns Response object
    */
-  async fetch(request: Request): Promise<Response> {
-    try {
-      // Initialize on first request
-      if (!this.agentState.initialized) {
-        await this.initialize();
-        await this.setState({ initialized: true } as Partial<TState>);
-      }
-
-      const url = new URL(request.url);
-      const path = url.pathname;
-
-      // Health check endpoint
-      if (path === '/health') {
-        const health = await this.checkHealth();
-        return Response.json(health);
-      }
-
-      // Message endpoint
-      if (path === '/message' && request.method === 'POST') {
-        const messageData = (await request.json()) as AgentMessage;
-        return await this.processMessage(messageData);
-      }
-
-      // State endpoint
-      if (path === '/state' && request.method === 'GET') {
-        return Response.json(this.agentState);
-      }
-
-      return Response.json(
-        { error: MESSAGES.ERROR_NOT_FOUND },
-        { status: 404 }
-      );
-    } catch (error) {
-      console.error('Agent fetch error:', error);
-      await this.setState({
-        errorCount: this.agentState.errorCount + 1,
-      } as Partial<TState>);
-
-      return Response.json(
-        { error: MESSAGES.ERROR_GENERIC },
-        { status: 500 }
-      );
-    }
+  protected errorResponse(
+    message: string,
+    status: number = 500
+  ): Response {
+    return this.jsonResponse({ error: message }, status);
   }
 }
