@@ -221,4 +221,15 @@ app.notFound((c) => {
 // EXPORT
 // ============================================
 
+/**
+ * Export Durable Object classes
+ */
+export { CiAgent } from './agents/ci-agent';
+export { PodiyaAgent } from './agents/podiya-agent';
+export { NastriyAgent } from './agents/nastriy-agent';
+export { MalyaAgent } from './agents/malya-agent';
+export { KazkarAgent } from './agents/kazkar-agent';
+export { KalendarAgent } from './agents/kalendar-agent';
+export { GalleryAgent } from './agents/gallery-agent';
+
 export default app;
