@@ -47,12 +47,6 @@ export class CiAgent extends BaseAgent {
         }
       }
 
-      if (request.method === 'POST' && url.pathname.endsWith('/message')) {
-        const message = await request.json() as AgentMessage;
-        const response = await this.handleMessage(message);
-        return this.jsonResponse(response as unknown as Record<string, unknown>);
-      }
-
       return this.errorResponse('Не знайдено', 404);
     } catch (error) {
       return this.errorResponse(
@@ -101,6 +95,8 @@ export class CiAgent extends BaseAgent {
 
   /**
    * List all registered agents and their status
+   * NOTE: Currently returns hardcoded data. Will be replaced with real
+   * Durable Object queries in B8 for actual agent status.
    */
   private async listAgents(): Promise<Record<string, any>> {
     const agents = [
@@ -148,10 +144,6 @@ export class CiAgent extends BaseAgent {
    * Calculate uptime in seconds
    */
   private getUptime(): number {
-    const state = this.getState();
-    if (state.last_activity) {
-      return Math.floor((Date.now() - new Date(state.last_activity).getTime()) / 1000);
-    }
-    return 0;
+    return Math.floor((Date.now() - this.startTime) / 1000);
   }
 }
