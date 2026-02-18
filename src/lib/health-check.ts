@@ -10,6 +10,7 @@ export async function verifyHealthChecks(env: Env): Promise<boolean> {
   const baseUrl = env.ENVIRONMENT === 'production'
     ? 'https://cimeika-backend.workers.dev'
     : 'http://localhost:8787';
+  let allHealthy = true;
 
   for (const agent of agents) {
     try {
@@ -18,6 +19,7 @@ export async function verifyHealthChecks(env: Env): Promise<boolean> {
 
       if (!response.ok) {
         console.warn(`Agent ${agent} health check failed: ${response.status}`);
+        allHealthy = false;
       } else {
         console.log(`Agent ${agent} healthy`);
       }
@@ -27,5 +29,5 @@ export async function verifyHealthChecks(env: Env): Promise<boolean> {
     }
   }
 
-  return true;
+  return allHealthy;
 }

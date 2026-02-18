@@ -116,6 +116,16 @@ describe('Health Check', () => {
     vi.unstubAllGlobals();
   });
 
+  it('should return false when agent returns error status', async () => {
+    const env = createMockEnv();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+
+    const result = await verifyHealthChecks(env);
+    expect(result).toBe(false);
+
+    vi.unstubAllGlobals();
+  });
+
   it('should return false when agent is unreachable', async () => {
     const env = createMockEnv();
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));

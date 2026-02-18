@@ -63,7 +63,7 @@ export async function initializeDatabase(env: Env): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_events_to ON events(agent_to);
       CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics(event_type);
       CREATE INDEX IF NOT EXISTS idx_analytics_agent ON analytics(agent);
-      CREATE INDEX IF NOT EXISTS idx_agent_states_updated ON agent_states(updated_at)
+      CREATE INDEX IF NOT EXISTS idx_agent_states_updated ON agent_states(updated_at);
     `;
 
     // Execute schema
