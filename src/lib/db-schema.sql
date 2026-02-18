@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS events (
   message_type TEXT NOT NULL,
   payload TEXT NOT NULL,
   priority TEXT NOT NULL DEFAULT 'medium',
+  processed INTEGER NOT NULL DEFAULT 0,
+  processed_at INTEGER,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
 );
 
@@ -50,6 +52,7 @@ CREATE TABLE IF NOT EXISTS health_checks (
 CREATE INDEX IF NOT EXISTS idx_events_agent_from ON events(agent_from);
 CREATE INDEX IF NOT EXISTS idx_events_agent_to ON events(agent_to);
 CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at);
+CREATE INDEX IF NOT EXISTS idx_events_processed ON events(processed);
 CREATE INDEX IF NOT EXISTS idx_analytics_agent ON analytics(agent);
 CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON analytics(timestamp);
 CREATE INDEX IF NOT EXISTS idx_health_checks_agent ON health_checks(agent_type);
