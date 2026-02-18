@@ -1,9 +1,13 @@
 import { Hono } from 'hono';
 import type { Env } from '../types/env';
+import type { HonoVariables } from '../types/hono';
 import { MESSAGES } from '../lib/constants';
 import { generateId, now } from '../lib/utils';
+import { validateBody } from '../middleware/validation';
+import { malyaIdeaSchema } from '../lib/validation';
+import type { z } from 'zod';
 
-const malya = new Hono<{ Bindings: Env }>();
+const malya = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
 malya.get('/health', async (c) => {
   try {
@@ -16,14 +20,10 @@ malya.get('/health', async (c) => {
   }
 });
 
-malya.post('/idea', async (c) => {
+malya.post('/idea', validateBody(malyaIdeaSchema), async (c) => {
   try {
-    const body = await c.req.json();
-    const { content } = body;
-
-    if (!content) {
-      return c.json({ error: MESSAGES.ERROR_INVALID_INPUT }, { status: 400 });
-    }
+    const body = c.get('validatedBody') as z.infer<typeof malyaIdeaSchema>;
+    const { content, tags, category } = body;
 
     const id = c.env.MALYA_AGENT.idFromName('malya-agent');
     const stub = c.env.MALYA_AGENT.get(id);
@@ -31,9 +31,9 @@ malya.post('/idea', async (c) => {
     const message = {
       id: generateId(),
       type: 'request',
-      from: 'api',
+      from: 'malya',
       to: 'malya',
-      payload: { action: 'add_idea', content },
+      payload: { action: 'add_idea', content, tags, category },
       priority: 'medium',
       timestamp: now(),
     };

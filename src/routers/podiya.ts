@@ -1,9 +1,13 @@
 import { Hono } from 'hono';
 import type { Env } from '../types/env';
+import type { HonoVariables } from '../types/hono';
 import { MESSAGES } from '../lib/constants';
 import { generateId, now } from '../lib/utils';
+import { validateBody } from '../middleware/validation';
+import { podiyaEventSchema } from '../lib/validation';
+import type { z } from 'zod';
 
-const podiya = new Hono<{ Bindings: Env }>();
+const podiya = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
 
 /**
  * GET /api/podiya/health - Get Podiya agent health
@@ -38,14 +42,10 @@ podiya.get('/state', async (c) => {
 /**
  * POST /api/podiya/event - Create new event
  */
-podiya.post('/event', async (c) => {
+podiya.post('/event', validateBody(podiyaEventSchema), async (c) => {
   try {
-    const body = await c.req.json();
-    const { type, data } = body;
-
-    if (!type) {
-      return c.json({ error: MESSAGES.ERROR_INVALID_INPUT }, { status: 400 });
-    }
+    const body = c.get('validatedBody') as z.infer<typeof podiyaEventSchema>;
+    const { type, data, priority = 'medium' } = body;
 
     const id = c.env.PODIYA_AGENT.idFromName('podiya-agent');
     const stub = c.env.PODIYA_AGENT.get(id);
@@ -53,10 +53,10 @@ podiya.post('/event', async (c) => {
     const message = {
       id: generateId(),
       type: 'request',
-      from: 'api',
+      from: 'podiya',
       to: 'podiya',
       payload: { action: 'create_event', type, data },
-      priority: 'medium',
+      priority,
       timestamp: now(),
     };
 
