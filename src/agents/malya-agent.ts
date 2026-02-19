@@ -55,11 +55,15 @@ export class MalyaAgent extends BaseAgent {
 
       if (path === '/ideas' && method === 'POST') {
         const body = await request.json() as Record<string, unknown>;
+        const title = String(body.title ?? '').trim();
+        if (!title) {
+          return this.errorResponse('Назва ідеї не може бути порожньою', 400);
+        }
         const id = crypto.randomUUID();
         const now = Date.now();
         await this.executeDB(
           'INSERT INTO ideas (id, title, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-          [id, String(body.title ?? ''), body.description ? String(body.description) : null, 'new', now, now]
+          [id, title, body.description ? String(body.description) : null, 'new', now, now]
         );
         return this.jsonResponse({ success: true, idea_id: id, message: 'Ідею додано', timestamp: new Date().toISOString() });
       }

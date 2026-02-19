@@ -62,18 +62,22 @@ export class GalleryAgent extends BaseAgent {
         if (!file) {
           return this.errorResponse('Файл не знайдено у запиті', 400);
         }
-        const key = `${crypto.randomUUID()}-${file.name}`;
+        const key = crypto.randomUUID();
         await this.uploadToR2(key, await file.arrayBuffer(), file.type);
         return this.jsonResponse({ success: true, key, message: 'Файл завантажено', timestamp: new Date().toISOString() });
       }
 
       if (path.startsWith('/files/') && method === 'GET') {
         const key = decodeURIComponent(path.slice('/files/'.length));
-        const data = await this.downloadFromR2(key);
-        if (!data) {
+        const object = await this.env.FILES.get(key);
+        if (!object) {
           return this.errorResponse('Файл не знайдено', 404);
         }
-        return new Response(data, { status: 200 });
+        const contentType = object.httpMetadata?.contentType ?? 'application/octet-stream';
+        return new Response(await object.arrayBuffer(), {
+          status: 200,
+          headers: { 'Content-Type': contentType },
+        });
       }
 
       if (path.startsWith('/files/') && method === 'DELETE') {

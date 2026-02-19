@@ -56,10 +56,14 @@ export class NastriyAgent extends BaseAgent {
 
       if (path === '/track' && method === 'POST') {
         const body = await request.json() as Record<string, unknown>;
+        const score = Number(body.score ?? 5);
+        if (isNaN(score) || score < 0 || score > 10) {
+          return this.errorResponse('Оцінка настрою має бути від 0 до 10', 400);
+        }
         const id = crypto.randomUUID();
         await this.executeDB(
           'INSERT INTO mood_entries (id, mood, score, note) VALUES (?, ?, ?, ?)',
-          [id, String(body.mood ?? ''), Number(body.score ?? 5), body.note ? String(body.note) : null]
+          [id, String(body.mood ?? ''), score, body.note ? String(body.note) : null]
         );
         return this.jsonResponse({ success: true, entry_id: id, message: 'Настрій зафіксовано', timestamp: new Date().toISOString() });
       }

@@ -55,11 +55,16 @@ export class KazkarAgent extends BaseAgent {
 
       if (path === '/stories' && method === 'POST') {
         const body = await request.json() as Record<string, unknown>;
+        const title = String(body.title ?? '').trim();
+        const content = String(body.content ?? '').trim();
+        if (!title || !content) {
+          return this.errorResponse('Назва та зміст легенди є обов\'язковими', 400);
+        }
         const id = crypto.randomUUID();
         const now = Date.now();
         await this.executeDB(
           'INSERT INTO stories (id, title, content, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-          [id, String(body.title ?? ''), String(body.content ?? ''), body.tags ? String(body.tags) : null, now, now]
+          [id, title, content, body.tags ? String(body.tags) : null, now, now]
         );
         return this.jsonResponse({ success: true, story_id: id, message: 'Легенду створено', timestamp: new Date().toISOString() });
       }

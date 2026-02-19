@@ -55,10 +55,18 @@ export class KalendarAgent extends BaseAgent {
 
       if (path === '/events' && method === 'POST') {
         const body = await request.json() as Record<string, unknown>;
+        const title = String(body.title ?? '').trim();
+        const date = String(body.date ?? '');
+        if (!title) {
+          return this.errorResponse('Назва події є обов\'язковою', 400);
+        }
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return this.errorResponse('Дата має бути у форматі YYYY-MM-DD', 400);
+        }
         const id = crypto.randomUUID();
         await this.executeDB(
           'INSERT INTO calendar_events (id, title, date, type, description) VALUES (?, ?, ?, ?, ?)',
-          [id, String(body.title ?? ''), String(body.date ?? ''), String(body.type ?? 'event'), body.description ? String(body.description) : null]
+          [id, title, date, String(body.type ?? 'event'), body.description ? String(body.description) : null]
         );
         return this.jsonResponse({ success: true, event_id: id, message: 'Подію додано до календаря', timestamp: new Date().toISOString() });
       }
