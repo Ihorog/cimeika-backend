@@ -16,31 +16,71 @@ export class KalendarAgent extends BaseAgent {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    const method = request.method;
 
     try {
-      switch (path) {
-        case '/health':
-          return this.jsonResponse({
-            agent: 'kalendar',
-            status: this.agentState.status,
-            uptime_seconds: Math.floor((Date.now() - this.startTime) / 1000),
-            message_count: this.agentState.message_count,
-            error_count: this.agentState.error_count,
-            timestamp: new Date().toISOString(),
-          });
-
-        case '/state':
-          return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
-
-        case '/message':
-          if (request.method !== 'POST') {
-            return this.errorResponse('Method not allowed', 405);
-          }
-          return this.handleIncomingMessage(request);
-
-        default:
-          return this.errorResponse('Not found', 404);
+      if (path === '/health') {
+        return this.jsonResponse({
+          agent: 'kalendar',
+          status: this.agentState.status,
+          uptime_seconds: Math.floor((Date.now() - this.startTime) / 1000),
+          message_count: this.agentState.message_count,
+          error_count: this.agentState.error_count,
+          timestamp: new Date().toISOString(),
+        });
       }
+
+      if (path === '/state') {
+        return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
+      }
+
+      if (path === '/status') {
+        return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
+      }
+
+      if (path === '/message' && method === 'POST') {
+        return this.handleIncomingMessage(request);
+      }
+
+      if (path === '/' && method === 'POST') {
+        return this.handleIncomingMessage(request);
+      }
+
+      if (path === '/events' && method === 'GET') {
+        const events = await this.queryDB<Record<string, unknown>>(
+          'SELECT * FROM calendar_events ORDER BY date ASC LIMIT 100'
+        );
+        return this.jsonResponse({ events, message: 'Календарні події', timestamp: new Date().toISOString() });
+      }
+
+      if (path === '/events' && method === 'POST') {
+        const body = await request.json() as Record<string, unknown>;
+        const title = String(body.title ?? '').trim();
+        const date = String(body.date ?? '');
+        if (!title) {
+          return this.errorResponse('Назва події є обов\'язковою', 400);
+        }
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return this.errorResponse('Дата має бути у форматі YYYY-MM-DD', 400);
+        }
+        const id = crypto.randomUUID();
+        await this.executeDB(
+          'INSERT INTO calendar_events (id, title, date, type, description) VALUES (?, ?, ?, ?, ?)',
+          [id, title, date, String(body.type ?? 'event'), body.description ? String(body.description) : null]
+        );
+        return this.jsonResponse({ success: true, event_id: id, message: 'Подію додано до календаря', timestamp: new Date().toISOString() });
+      }
+
+      if (path === '/today' && method === 'GET') {
+        const today = new Date().toISOString().slice(0, 10);
+        const events = await this.queryDB<Record<string, unknown>>(
+          "SELECT * FROM calendar_events WHERE date = ? ORDER BY created_at ASC",
+          [today]
+        );
+        return this.jsonResponse({ events, today, message: 'Події на сьогодні', timestamp: new Date().toISOString() });
+      }
+
+      return this.errorResponse('Not found', 404);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[KalendarAgent] fetch error: ${msg}`);
@@ -72,6 +112,40 @@ export class KalendarAgent extends BaseAgent {
           message: 'Розклад',
           timestamp: new Date().toISOString(),
         };
+
+      case 'add-event': {
+        const { title, date, type, description } = message.payload;
+        const id = crypto.randomUUID();
+        await this.executeDB(
+          'INSERT INTO calendar_events (id, title, date, type, description) VALUES (?, ?, ?, ?, ?)',
+          [id, String(title ?? ''), String(date ?? ''), String(type ?? 'event'), description ? String(description) : null]
+        );
+        return { success: true, event_id: id, message: 'Подію додано до календаря', timestamp: new Date().toISOString() };
+      }
+
+      case 'get-today': {
+        const today = new Date().toISOString().slice(0, 10);
+        const events = await this.queryDB<Record<string, unknown>>(
+          "SELECT * FROM calendar_events WHERE date = ? ORDER BY created_at ASC",
+          [today]
+        );
+        return { events, today, message: 'Події на сьогодні', timestamp: new Date().toISOString() };
+      }
+
+      case 'get-upcoming': {
+        const today = new Date().toISOString().slice(0, 10);
+        const events = await this.queryDB<Record<string, unknown>>(
+          "SELECT * FROM calendar_events WHERE date >= ? ORDER BY date ASC LIMIT 100",
+          [today]
+        );
+        return { events, message: 'Майбутні події', timestamp: new Date().toISOString() };
+      }
+
+      case 'delete-event': {
+        const { id } = message.payload;
+        await this.executeDB('DELETE FROM calendar_events WHERE id = ?', [id]);
+        return { success: true, message: 'Подію видалено', timestamp: new Date().toISOString() };
+      }
 
       default:
         return {

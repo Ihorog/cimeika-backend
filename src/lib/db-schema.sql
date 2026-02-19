@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS agent_states (
   agent_type TEXT PRIMARY KEY,
   state_json TEXT NOT NULL,
+  uptime_seconds INTEGER NOT NULL DEFAULT 0,
+  message_count INTEGER NOT NULL DEFAULT 0,
+  error_count INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
 );
 
@@ -47,6 +50,51 @@ CREATE TABLE IF NOT EXISTS health_checks (
   details TEXT,
   timestamp INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
 );
+
+-- Mood tracking (Настрій)
+CREATE TABLE IF NOT EXISTS mood_entries (
+  id TEXT PRIMARY KEY,
+  mood TEXT NOT NULL,
+  score REAL NOT NULL CHECK(score >= 0 AND score <= 10),
+  note TEXT,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+);
+
+-- Ideas (Маля)
+CREATE TABLE IF NOT EXISTS ideas (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new', 'active', 'done', 'archived')),
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+  updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+);
+
+-- Stories (Казкар)
+CREATE TABLE IF NOT EXISTS stories (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  tags TEXT,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+  updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+);
+
+-- Calendar events (Календар)
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  date TEXT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'event',
+  description TEXT,
+  created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+);
+
+-- Indexes for new tables
+CREATE INDEX IF NOT EXISTS idx_mood_created ON mood_entries(created_at);
+CREATE INDEX IF NOT EXISTS idx_ideas_status ON ideas(status);
+CREATE INDEX IF NOT EXISTS idx_stories_created ON stories(created_at);
+CREATE INDEX IF NOT EXISTS idx_calendar_date ON calendar_events(date);
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_events_agent_from ON events(agent_from);

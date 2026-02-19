@@ -1,50 +1,75 @@
 import { Hono } from 'hono';
 import type { Env } from '../types/env';
 import { MESSAGES } from '../lib/constants';
-import { generateId, now } from '../lib/utils';
 
 const kalendar = new Hono<{ Bindings: Env }>();
+
+kalendar.get('/status', async (c) => {
+  try {
+    const id = c.env.KALENDAR_AGENT.idFromName('kalendar-agent');
+    const stub = c.env.KALENDAR_AGENT.get(id);
+    return await stub.fetch('https://agent/status');
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
 
 kalendar.get('/health', async (c) => {
   try {
     const id = c.env.KALENDAR_AGENT.idFromName('kalendar-agent');
     const stub = c.env.KALENDAR_AGENT.get(id);
     return await stub.fetch('https://agent/health');
-  } catch (error) {
-    console.error('Kalendar health error:', error);
+  } catch {
     return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
   }
 });
 
-kalendar.post('/schedule', async (c) => {
+kalendar.get('/events', async (c) => {
   try {
-    const body = await c.req.json();
-    const { time, description } = body;
-
-    if (!time || !description) {
-      return c.json({ error: MESSAGES.ERROR_INVALID_INPUT }, { status: 400 });
-    }
-
     const id = c.env.KALENDAR_AGENT.idFromName('kalendar-agent');
     const stub = c.env.KALENDAR_AGENT.get(id);
+    return await stub.fetch('https://agent/events');
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
 
-    const message = {
-      id: generateId(),
-      type: 'request',
-      from: 'api',
-      to: 'kalendar',
-      payload: { action: 'schedule_event', time, description },
-      priority: 'medium',
-      timestamp: now(),
-    };
+kalendar.get('/today', async (c) => {
+  try {
+    const id = c.env.KALENDAR_AGENT.idFromName('kalendar-agent');
+    const stub = c.env.KALENDAR_AGENT.get(id);
+    return await stub.fetch('https://agent/today');
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
 
-    return await stub.fetch('https://agent/message', {
+kalendar.post('/', async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = c.env.KALENDAR_AGENT.idFromName('kalendar-agent');
+    const stub = c.env.KALENDAR_AGENT.get(id);
+    return await stub.fetch('https://agent/', {
       method: 'POST',
+      body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(message),
     });
-  } catch (error) {
-    console.error('Kalendar schedule error:', error);
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
+
+kalendar.post('/events', async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = c.env.KALENDAR_AGENT.idFromName('kalendar-agent');
+    const stub = c.env.KALENDAR_AGENT.get(id);
+    return await stub.fetch('https://agent/events', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
     return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
   }
 });

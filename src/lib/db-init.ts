@@ -33,11 +33,11 @@ export async function initializeDatabase(env: Env): Promise<void> {
       CREATE TABLE IF NOT EXISTS agent_states (
         agent_type TEXT PRIMARY KEY,
         state_json TEXT NOT NULL,
-        uptime_seconds INTEGER DEFAULT 0,
-        message_count INTEGER DEFAULT 0,
-        error_count INTEGER DEFAULT 0,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        uptime_seconds INTEGER NOT NULL DEFAULT 0,
+        message_count INTEGER NOT NULL DEFAULT 0,
+        error_count INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
       );
 
       -- Events table
@@ -64,6 +64,45 @@ export async function initializeDatabase(env: Env): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics(event_type);
       CREATE INDEX IF NOT EXISTS idx_analytics_agent ON analytics(agent);
       CREATE INDEX IF NOT EXISTS idx_agent_states_updated ON agent_states(updated_at);
+
+      -- Mood tracking
+      CREATE TABLE IF NOT EXISTS mood_entries (
+        id TEXT PRIMARY KEY,
+        mood TEXT NOT NULL,
+        score REAL NOT NULL CHECK(score >= 0 AND score <= 10),
+        note TEXT,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      );
+
+      -- Ideas
+      CREATE TABLE IF NOT EXISTS ideas (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'new' CHECK(status IN ('new', 'active', 'done', 'archived')),
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      );
+
+      -- Stories
+      CREATE TABLE IF NOT EXISTS stories (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        tags TEXT,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      );
+
+      -- Calendar events
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        date TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'event',
+        description TEXT,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      );
     `;
 
     // Execute schema

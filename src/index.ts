@@ -1,7 +1,7 @@
 /**
  * CIMEIKA Backend - Main Entry Point
  * Hono-based REST API with 7 Durable Object Agents
- * 
+ *
  * Language Invariant:
  * - UI/API Messages: Українська
  * - Code: English
@@ -9,6 +9,7 @@
 
 import { Hono } from 'hono';
 import type { Env } from './types';
+import { getHealthStatus } from './lib/health-check';
 
 // Import middleware
 import {
@@ -17,6 +18,15 @@ import {
   createErrorHandlerMiddleware,
   createLoggerMiddleware
 } from './middleware';
+
+// Import routers
+import ciRouter from './routers/ci';
+import podiyaRouter from './routers/podiya';
+import nastriyRouter from './routers/nastriy';
+import malyaRouter from './routers/malya';
+import kazkarRouter from './routers/kazkar';
+import kalendarRouter from './routers/kalendar';
+import galleryRouter from './routers/gallery';
 
 // ============================================
 // CREATE HONO APP
@@ -39,36 +49,53 @@ app.use('*', createAuthMiddleware());
 
 /**
  * Health check endpoint
- * Returns 200 if backend is running
- * Used by monitoring systems
+ * Returns 200 if backend is UP, 503 if DEGRADED/DOWN
  */
-app.get('/api/health', (c) => {
-  return c.json({
-    status: 'UP',
-    timestamp: new Date().toISOString(),
-    version: '0.1.0',
-    agents: 7,
-    environment: c.env.ENVIRONMENT
-  });
+app.get('/api/health', async (c) => {
+  const health = await getHealthStatus(c.env);
+  const httpStatus = health.status === 'UP' ? 200 : 503;
+  return c.json(health, httpStatus);
 });
 
 /**
  * System status endpoint
- * Returns detailed system and agent status
+ * Returns detailed system and agent status by querying each DO
  */
 app.get('/api/status', async (c) => {
+  const agentBindings = [
+    { name: 'ci', binding: c.env.CI_AGENT, id: 'ci-agent' },
+    { name: 'podiya', binding: c.env.PODIYA_AGENT, id: 'podiya-agent' },
+    { name: 'nastriy', binding: c.env.NASTRIY_AGENT, id: 'nastriy-agent' },
+    { name: 'malya', binding: c.env.MALYA_AGENT, id: 'malya-agent' },
+    { name: 'kazkar', binding: c.env.KAZKAR_AGENT, id: 'kazkar-agent' },
+    { name: 'kalendar', binding: c.env.KALENDAR_AGENT, id: 'kalendar-agent' },
+    { name: 'gallery', binding: c.env.GALLERY_AGENT, id: 'gallery-agent' },
+  ];
+
+  const results = await Promise.allSettled(
+    agentBindings.map(async ({ name, binding, id }) => {
+      const stub = binding.get(binding.idFromName(id));
+      const res = await stub.fetch('https://agent/status');
+      const data = await res.json() as Record<string, unknown>;
+      return { name, ...data };
+    })
+  );
+
+  const agents: Record<string, unknown> = {};
+  for (let i = 0; i < agentBindings.length; i++) {
+    const result = results[i];
+    const { name } = agentBindings[i];
+    if (result.status === 'fulfilled') {
+      agents[name] = result.value;
+    } else {
+      agents[name] = { status: 'error', error: 'Недоступний' };
+    }
+  }
+
   return c.json({
-    system: 'INITIALIZING',
+    system: 'CIMEIKA',
     timestamp: new Date().toISOString(),
-    agents: {
-      ci: { status: 'ready', uptime: 0 },
-      podiya: { status: 'ready', uptime: 0 },
-      nastriy: { status: 'ready', uptime: 0 },
-      malya: { status: 'ready', uptime: 0 },
-      kazkar: { status: 'ready', uptime: 0 },
-      kalendar: { status: 'ready', uptime: 0 },
-      gallery: { status: 'ready', uptime: 0 }
-    },
+    agents,
     bindings: {
       durable_objects: 7,
       kv_namespaces: 2,
@@ -115,88 +142,16 @@ app.get('/api/manifest', (c) => {
 });
 
 // ============================================
-// AGENT ROUTE PLACEHOLDERS
+// AGENT ROUTES (Real Durable Object proxies)
 // ============================================
 
-// These will be implemented in Pool B (B1-B7)
-// For now: stub responses to verify routing
-
-/**
- * Ci Agent endpoints (Orchestration)
- */
-app.get('/api/agents/ci/status', (c) => {
-  return c.json({ agent: 'Ci', status: 'ready' });
-});
-
-app.post('/api/agents/ci', (c) => {
-  return c.json({ agent: 'Ci', message: 'Processing...' });
-});
-
-/**
- * Podiya Agent endpoints (Events)
- */
-app.get('/api/agents/podiya/status', (c) => {
-  return c.json({ agent: 'Подія', status: 'ready' });
-});
-
-app.post('/api/agents/podiya', (c) => {
-  return c.json({ agent: 'Подія', message: 'Processing...' });
-});
-
-/**
- * Nastriy Agent endpoints (Mood)
- */
-app.get('/api/agents/nastriy/status', (c) => {
-  return c.json({ agent: 'Настрій', status: 'ready' });
-});
-
-app.post('/api/agents/nastriy', (c) => {
-  return c.json({ agent: 'Настрій', message: 'Processing...' });
-});
-
-/**
- * Malya Agent endpoints (Ideas)
- */
-app.get('/api/agents/malya/status', (c) => {
-  return c.json({ agent: 'Маля', status: 'ready' });
-});
-
-app.post('/api/agents/malya', (c) => {
-  return c.json({ agent: 'Маля', message: 'Processing...' });
-});
-
-/**
- * Kazkar Agent endpoints (Stories)
- */
-app.get('/api/agents/kazkar/status', (c) => {
-  return c.json({ agent: 'Казкар', status: 'ready' });
-});
-
-app.post('/api/agents/kazkar', (c) => {
-  return c.json({ agent: 'Казкар', message: 'Processing...' });
-});
-
-/**
- * Kalendar Agent endpoints (Time)
- */
-app.get('/api/agents/kalendar/status', (c) => {
-  return c.json({ agent: 'Календар', status: 'ready' });
-});
-
-app.post('/api/agents/kalendar', (c) => {
-  return c.json({ agent: 'Календар', message: 'Processing...' });
-});
-
-/**
- * Gallery Agent endpoints (Media)
- */
-app.get('/api/agents/gallery/status', (c) => {
-  return c.json({ agent: 'Галерея', status: 'ready' });
-});
-
-app.post('/api/agents/gallery', (c) => {
-  return c.json({ agent: 'Галерея', message: 'Processing...' });
-});
+app.route('/api/agents/ci', ciRouter);
+app.route('/api/agents/podiya', podiyaRouter);
+app.route('/api/agents/nastriy', nastriyRouter);
+app.route('/api/agents/malya', malyaRouter);
+app.route('/api/agents/kazkar', kazkarRouter);
+app.route('/api/agents/kalendar', kalendarRouter);
+app.route('/api/agents/gallery', galleryRouter);
 
 // ============================================
 // 404 HANDLER

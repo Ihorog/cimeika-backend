@@ -197,3 +197,42 @@ export const ALL_AGENT_TYPES: AgentType[] = [
   'kalendar',
   'gallery'
 ];
+
+// ============================================
+// D1 TABLE ROW TYPES
+// ============================================
+
+export interface MoodEntry {
+  id: string;
+  mood: string;
+  score: number;
+  note?: string;
+  created_at: number;
+}
+
+export interface Idea {
+  id: string;
+  title: string;
+  description?: string;
+  status: 'new' | 'active' | 'done' | 'archived';
+  created_at: number;
+  updated_at: number;
+}
+
+export interface Story {
+  id: string;
+  title: string;
+  content: string;
+  tags?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string;
+  type: string;
+  description?: string;
+  created_at: number;
+}
