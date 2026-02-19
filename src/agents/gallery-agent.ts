@@ -16,31 +16,73 @@ export class GalleryAgent extends BaseAgent {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    const method = request.method;
 
     try {
-      switch (path) {
-        case '/health':
-          return this.jsonResponse({
-            agent: 'gallery',
-            status: this.agentState.status,
-            uptime_seconds: Math.floor((Date.now() - this.startTime) / 1000),
-            message_count: this.agentState.message_count,
-            error_count: this.agentState.error_count,
-            timestamp: new Date().toISOString(),
-          });
-
-        case '/state':
-          return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
-
-        case '/message':
-          if (request.method !== 'POST') {
-            return this.errorResponse('Method not allowed', 405);
-          }
-          return this.handleIncomingMessage(request);
-
-        default:
-          return this.errorResponse('Not found', 404);
+      if (path === '/health') {
+        return this.jsonResponse({
+          agent: 'gallery',
+          status: this.agentState.status,
+          uptime_seconds: Math.floor((Date.now() - this.startTime) / 1000),
+          message_count: this.agentState.message_count,
+          error_count: this.agentState.error_count,
+          timestamp: new Date().toISOString(),
+        });
       }
+
+      if (path === '/state') {
+        return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
+      }
+
+      if (path === '/status') {
+        return this.jsonResponse(this.getState() as unknown as Record<string, unknown>);
+      }
+
+      if (path === '/message' && method === 'POST') {
+        return this.handleIncomingMessage(request);
+      }
+
+      if (path === '/' && method === 'POST') {
+        return this.handleIncomingMessage(request);
+      }
+
+      if (path === '/files' && method === 'GET') {
+        const listing = await this.env.FILES.list();
+        const files = listing.objects.map((obj) => ({
+          key: obj.key,
+          size: obj.size,
+          uploaded: obj.uploaded,
+        }));
+        return this.jsonResponse({ files, message: 'Список файлів', timestamp: new Date().toISOString() });
+      }
+
+      if (path === '/upload' && method === 'POST') {
+        const formData = await request.formData();
+        const file = formData.get('file') as File | null;
+        if (!file) {
+          return this.errorResponse('Файл не знайдено у запиті', 400);
+        }
+        const key = `${crypto.randomUUID()}-${file.name}`;
+        await this.uploadToR2(key, await file.arrayBuffer(), file.type);
+        return this.jsonResponse({ success: true, key, message: 'Файл завантажено', timestamp: new Date().toISOString() });
+      }
+
+      if (path.startsWith('/files/') && method === 'GET') {
+        const key = decodeURIComponent(path.slice('/files/'.length));
+        const data = await this.downloadFromR2(key);
+        if (!data) {
+          return this.errorResponse('Файл не знайдено', 404);
+        }
+        return new Response(data, { status: 200 });
+      }
+
+      if (path.startsWith('/files/') && method === 'DELETE') {
+        const key = decodeURIComponent(path.slice('/files/'.length));
+        await this.env.FILES.delete(key);
+        return this.jsonResponse({ success: true, message: 'Файл видалено', timestamp: new Date().toISOString() });
+      }
+
+      return this.errorResponse('Not found', 404);
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[GalleryAgent] fetch error: ${msg}`);
@@ -72,6 +114,34 @@ export class GalleryAgent extends BaseAgent {
           message: 'Список файлів',
           timestamp: new Date().toISOString(),
         };
+
+      case 'upload-file': {
+        const { key, body, contentType } = message.payload;
+        await this.uploadToR2(String(key ?? ''), body, contentType ? String(contentType) : undefined);
+        return { success: true, key, message: 'Файл завантажено', timestamp: new Date().toISOString() };
+      }
+
+      case 'list-files': {
+        const listing = await this.env.FILES.list();
+        const files = listing.objects.map((obj) => ({
+          key: obj.key,
+          size: obj.size,
+          uploaded: obj.uploaded,
+        }));
+        return { files, message: 'Список файлів', timestamp: new Date().toISOString() };
+      }
+
+      case 'get-file': {
+        const { key } = message.payload;
+        const data = await this.downloadFromR2(String(key ?? ''));
+        return { found: data !== null, key, message: data ? 'Файл знайдено' : 'Файл не знайдено', timestamp: new Date().toISOString() };
+      }
+
+      case 'delete-file': {
+        const { key } = message.payload;
+        await this.env.FILES.delete(String(key ?? ''));
+        return { success: true, key, message: 'Файл видалено', timestamp: new Date().toISOString() };
+      }
 
       default:
         return {

@@ -276,3 +276,21 @@ Run the schema migration and verify D1 database ID in `wrangler.jsonc`.
 **Version:** 0.1.0  
 **Last Updated:** 2026-02-19
 
+
+
+## Нові таблиці (v0.2.0)
+
+Після оновлення схеми виконати міграцію:
+
+```bash
+wrangler d1 execute cimeika --file=./src/lib/db-schema.sql
+```
+
+Нові таблиці:
+- `mood_entries` — записи настрою (NastriyAgent)
+- `ideas` — ідеї (MalyaAgent)
+- `stories` — легенди/історії (KazkarAgent)
+- `calendar_events` — події календаря (KalendarAgent)
+
+Оновлена таблиця:
+- `agent_states` — додано колонки `uptime_seconds`, `message_count`, `error_count`

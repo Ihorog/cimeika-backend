@@ -1,74 +1,86 @@
 import { Hono } from 'hono';
 import type { Env } from '../types/env';
-import type { HonoVariables } from '../types/hono';
 import { MESSAGES } from '../lib/constants';
-import { generateId, now } from '../lib/utils';
-import { validateBody } from '../middleware/validation';
-import { podiyaEventSchema } from '../lib/validation';
-import type { z } from 'zod';
 
-const podiya = new Hono<{ Bindings: Env; Variables: HonoVariables }>();
+const podiya = new Hono<{ Bindings: Env }>();
 
-/**
- * GET /api/podiya/health - Get Podiya agent health
- */
+podiya.get('/status', async (c) => {
+  try {
+    const id = c.env.PODIYA_AGENT.idFromName('podiya-agent');
+    const stub = c.env.PODIYA_AGENT.get(id);
+    return await stub.fetch('https://agent/status');
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
+
 podiya.get('/health', async (c) => {
   try {
     const id = c.env.PODIYA_AGENT.idFromName('podiya-agent');
     const stub = c.env.PODIYA_AGENT.get(id);
-    const response = await stub.fetch('https://agent/health');
-    return response;
-  } catch (error) {
-    console.error('Podiya health check error:', error);
+    return await stub.fetch('https://agent/health');
+  } catch {
     return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
   }
 });
 
-/**
- * GET /api/podiya/state - Get Podiya agent state
- */
-podiya.get('/state', async (c) => {
+podiya.get('/list', async (c) => {
   try {
     const id = c.env.PODIYA_AGENT.idFromName('podiya-agent');
     const stub = c.env.PODIYA_AGENT.get(id);
-    const response = await stub.fetch('https://agent/state');
-    return response;
-  } catch (error) {
-    console.error('Podiya state error:', error);
+    return await stub.fetch('https://agent/list');
+  } catch {
     return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
   }
 });
 
-/**
- * POST /api/podiya/event - Create new event
- */
-podiya.post('/event', validateBody(podiyaEventSchema), async (c) => {
+podiya.get('/upcoming', async (c) => {
   try {
-    const body = c.get('validatedBody') as z.infer<typeof podiyaEventSchema>;
-    const { type, data, priority = 'medium' } = body;
-
     const id = c.env.PODIYA_AGENT.idFromName('podiya-agent');
     const stub = c.env.PODIYA_AGENT.get(id);
+    return await stub.fetch('https://agent/upcoming');
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
 
-    const message = {
-      id: generateId(),
-      type: 'request',
-      from: 'podiya',
-      to: 'podiya',
-      payload: { action: 'create_event', type, data },
-      priority,
-      timestamp: now(),
-    };
-
-    const response = await stub.fetch('https://agent/message', {
+podiya.post('/', async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = c.env.PODIYA_AGENT.idFromName('podiya-agent');
+    const stub = c.env.PODIYA_AGENT.get(id);
+    return await stub.fetch('https://agent/', {
       method: 'POST',
+      body: JSON.stringify(body),
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(message),
     });
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
 
-    return response;
-  } catch (error) {
-    console.error('Podiya event creation error:', error);
+podiya.post('/create', async (c) => {
+  try {
+    const body = await c.req.json();
+    const id = c.env.PODIYA_AGENT.idFromName('podiya-agent');
+    const stub = c.env.PODIYA_AGENT.get(id);
+    return await stub.fetch('https://agent/create', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
+  }
+});
+
+podiya.delete('/:id', async (c) => {
+  try {
+    const eventId = c.req.param('id');
+    const agentId = c.env.PODIYA_AGENT.idFromName('podiya-agent');
+    const stub = c.env.PODIYA_AGENT.get(agentId);
+    return await stub.fetch(`https://agent/delete/${eventId}`, { method: 'DELETE' });
+  } catch {
     return c.json({ error: MESSAGES.ERROR_GENERIC }, { status: 500 });
   }
 });
