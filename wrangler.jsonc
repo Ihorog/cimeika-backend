@@ -19,13 +19,13 @@
 
   // KV Namespaces (IDs to be filled after wrangler kv:namespace create)
   "kv_namespaces": [
-    { "binding": "CONFIG", "id": "PRODUCTION_KV_ID", "preview_id": "PREVIEW_KV_ID" },
-    { "binding": "AUTH_TOKENS", "id": "PRODUCTION_AUTH_ID", "preview_id": "PREVIEW_AUTH_ID" }
+    { "binding": "CONFIG", "id": "YOUR_CONFIG_KV_ID", "preview_id": "YOUR_CONFIG_PREVIEW_ID" },
+    { "binding": "AUTH_TOKENS", "id": "YOUR_AUTH_KV_ID", "preview_id": "YOUR_AUTH_PREVIEW_ID" }
   ],
 
   // D1 Database (ID to be filled after wrangler d1 create)
   "d1_databases": [
-    { "binding": "DB", "database_name": "cimeika", "database_id": "PRODUCTION_DB_ID" }
+    { "binding": "DB", "database_name": "cimeika", "database_id": "YOUR_DB_ID" }
   ],
 
   // R2 Buckets
@@ -38,17 +38,27 @@
     { "binding": "ANALYTICS" }
   ],
 
+  // Environment variables
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
   // Environment configuration
   "env": {
-    "production": {
-      "vars": {
-        "ENVIRONMENT": "production"
-      }
-    },
     "staging": {
       "vars": {
         "ENVIRONMENT": "staging"
       }
+    },
+    "production": {
+      "vars": {
+        "ENVIRONMENT": "production"
+      }
     }
+  },
+
+  // Observability
+  "observability": {
+    "enabled": true
   }
 }
