@@ -5,31 +5,80 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  deployments: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy
+    environment: production
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
       - name: Type check
         run: npm run types
 
-      - name: Deploy to Cloudflare
+      - name: Lint code
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Deploy to Cloudflare Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          echo "🚀 Deploying to Cloudflare Workers..."
           npx wrangler deploy --env production
+          echo "✅ Deployment complete"
+
+      - name: Verify deployment
+        run: |
+          echo "⏳ Waiting for deployment to propagate..."
+          sleep 5
+
+          echo "🔍 Health check..."
+          curl -f https://cimeika-backend.workers.dev/api/health \
+            -H "Content-Type: application/json" \
+            || { echo "❌ Health check failed"; exit 1; }
+
+          echo "✅ Deployment verified successfully"
+
+      - name: Check all agents
+        run: |
+          echo "🔍 Checking all 7 agents..."
+          for agent in ci podiya nastriy malya kazkar kalendar gallery; do
+            curl -f https://cimeika-backend.workers.dev/api/agents/$agent/status \
+              || { echo "❌ Agent $agent not responding"; exit 1; }
+            echo "  ✅ Agent $agent: UP"
+          done
+          echo "✅ All agents responding"
+
+      - name: Get system status
+        run: |
+          echo "📊 System status:"
+          curl -s https://cimeika-backend.workers.dev/api/status | jq '.'
+
+      - name: Notify Slack on success
+        if: success()
+        run: |
+          echo "✅ Deployment successful at $(date)"
+
+      - name: Notify Slack on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed at $(date)"
+          exit 1
