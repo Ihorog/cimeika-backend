@@ -20,7 +20,7 @@
 - [alisa-pwa-4](https://github.com/Ihorog/alisa-pwa-4) - PWA застосунок
 - [media](https://github.com/Ihorog/media) - Медіа ресурси
 
-## Агенти
+## Агенти (7)
 - 🧠 **Ci** - Оркестрація та моніторинг
 - 📅 **Подія** - Події та тригери
 - 💭 **Настрій** - Відстеження настрою
@@ -36,6 +36,22 @@
 - **AI:** OpenAI SDK ^4.77.0
 - **Agents:** `agents` SDK
 - **Storage:** KV, D1, R2, Analytics Engine
+
+## API Endpoints
+
+### Core
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check (status, checks, agents count) |
+| `/api/status` | GET | Detailed system + agent status |
+| `/api/manifest` | GET | API documentation listing |
+
+### Agent Endpoints
+Each of the 7 agents exposes:
+| Pattern | Method | Description |
+|---------|--------|-------------|
+| `/api/agents/{agent}/status` | GET | Agent status |
+| `/api/agents/{agent}` | POST | Send message to agent |
 
 ## Setup
 
@@ -91,6 +107,32 @@ npm test
 npm run test:coverage
 ```
 
+## Monitoring
+
+### Health Check
+```bash
+curl https://cimeika-backend.workers.dev/api/health
+```
+
+Expected response:
+```json
+{
+  "status": "UP",
+  "timestamp": "2026-02-19T18:00:00.000Z",
+  "version": "0.1.0",
+  "environment": "production",
+  "agents": 7,
+  "checks": { "kv": true, "analytics": true, "database": true }
+}
+```
+
+### Metrics
+- Metrics are written to the **Analytics Engine** (`ANALYTICS` binding).
+- `logMetric(env, name, value, tags)` – low-level metric write.
+- `reportEndpointMetric(env, endpoint, method, status, durationMs)` – per-request latency/status.
+- `reportAgentStatus(env, agent, uptime, errors)` – agent health.
+- `alert(env, message, severity)` – high-priority alert persisted to KV + Analytics.
+
 ## Architecture
 ```
 src/
@@ -111,6 +153,8 @@ src/
 ├── middleware/           # Auth, CORS, Rate Limit
 ├── types/                # TypeScript definitions
 └── lib/                  # Utilities
+    ├── health-check.ts   # getHealthStatus, verifyDeployment
+    └── monitoring.ts     # logMetric, reportError, alert, …
 ```
 
 ## Language Invariant
@@ -121,9 +165,10 @@ src/
 
 ## Status
 ```
-Backend: 0% → 100%
-Agents: 0/7 → 7/7
-Deployment: ❌ → ✅
+Backend: 100%
+Agents: 7/7
+Monitoring: ✅
+Deployment: ✅ (pending Cloudflare resources)
 ```
 
 ## License

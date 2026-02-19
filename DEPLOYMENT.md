@@ -2,10 +2,10 @@
 
 ## 📦 Implementation Complete
 
-✅ **35 files created** (~2777 lines of code)
-✅ **All TypeScript strict mode checks passing**
-✅ **All tests passing (18/18)**
-✅ **GitHub Actions workflows configured**
+✅ **All TypeScript strict mode checks passing**  
+✅ **All tests passing**  
+✅ **GitHub Actions workflows configured**  
+✅ **Health check and monitoring utilities ready**
 
 ---
 
@@ -26,18 +26,8 @@ wrangler login
 ### Step 3: Create KV Namespaces
 
 ```bash
-# Create CONFIG namespace
 wrangler kv:namespace create CONFIG
-
-# Create AUTH_TOKENS namespace
 wrangler kv:namespace create AUTH_TOKENS
-```
-
-**Output example:**
-```
-✨ Success!
-Add the following to your wrangler.jsonc:
-{ binding = "CONFIG", id = "abc123..." }
 ```
 
 Update `wrangler.jsonc` with the IDs from the output.
@@ -45,10 +35,7 @@ Update `wrangler.jsonc` with the IDs from the output.
 ### Step 4: Create D1 Database
 
 ```bash
-# Create database
 wrangler d1 create cimeika
-
-# Initialize schema
 wrangler d1 execute cimeika --file=./src/lib/db-schema.sql
 ```
 
@@ -64,16 +51,9 @@ wrangler r2 bucket create cimeika-files
 
 ```bash
 wrangler secret put GITHUB_TOKEN
-# Paste your GitHub token when prompted
-
 wrangler secret put OPENAI_API_KEY
-# Paste your OpenAI API key when prompted
-
 wrangler secret put HUGGINGFACE_TOKEN
-# Paste your HuggingFace token when prompted
-
 wrangler secret put VERCEL_TOKEN
-# Paste your Vercel token when prompted (optional)
 ```
 
 ### Step 7: Deploy to Cloudflare Workers
@@ -82,28 +62,21 @@ wrangler secret put VERCEL_TOKEN
 npm run deploy
 ```
 
-Expected output:
-```
-✨ Success! Uploaded 7 Durable Object bindings
-Published cimeika-backend (X.XX sec)
-  https://cimeika-backend.YOURWORKER.workers.dev
-```
-
 ### Step 8: Verify Deployment
 
 ```bash
-# Test health endpoint
-curl https://cimeika-backend.YOURWORKER.workers.dev/api/health
+curl https://cimeika-backend.workers.dev/api/health
+```
 
-# Expected response:
+Expected response:
+```json
 {
-  "status": "healthy",
-  "message": "Система працює нормально",
-  "timestamp": 1708249200000,
-  "checks": {
-    "database": true,
-    "kv": true
-  }
+  "status": "UP",
+  "timestamp": "2026-02-19T18:00:00.000Z",
+  "version": "0.1.0",
+  "environment": "production",
+  "agents": 7,
+  "checks": { "kv": true, "analytics": true, "database": true }
 }
 ```
 
@@ -113,154 +86,138 @@ curl https://cimeika-backend.YOURWORKER.workers.dev/api/health
 
 ### Required Secrets
 
-Add these secrets to your GitHub repository:
-- Settings → Secrets and variables → Actions → New repository secret
+Add to repository: Settings → Secrets and variables → Actions
 
-1. **CLOUDFLARE_API_TOKEN**
-   - Get from: Cloudflare Dashboard → My Profile → API Tokens
-   - Template: "Edit Cloudflare Workers"
-
-2. **CLOUDFLARE_ACCOUNT_ID**
-   - Get from: Cloudflare Dashboard → Workers & Pages → Overview
-   - Look for "Account ID"
+1. **CLOUDFLARE_API_TOKEN** – Cloudflare Dashboard → My Profile → API Tokens (Edit Cloudflare Workers template)
+2. **CLOUDFLARE_ACCOUNT_ID** – Cloudflare Dashboard → Workers & Pages → Overview
 
 ### Workflows
 
-Three workflows are configured:
-
-1. **deploy.yml** - Deploys on push to main
-2. **test.yml** - Runs tests on PRs and pushes
-3. **health-check.yml** - Monitors backend health every 5 minutes
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `deploy.yml` | Push to `main` | Deploy to Cloudflare Workers |
+| `test.yml` | PR / push | Run test suite & type checks |
+| `health-check.yml` | Schedule (every 5 min) | Monitor `/api/health` endpoint |
 
 ---
 
 ## 📊 API Endpoints
 
-### Base Endpoints
+### Core Endpoints
 
-- `GET /` - API information
-- `GET /api/health` - Health check
-- `GET /api/status` - System status
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/health` | GET | ❌ | Health check (KV, DB, Analytics) |
+| `/api/status` | GET | ❌ | Detailed system + agent status |
+| `/api/manifest` | GET | ❌ | API documentation |
 
-### Agent Endpoints
+### Agent Endpoints (7 agents)
 
-Each agent has these endpoints:
+Each agent (`ci`, `podiya`, `nastriy`, `malya`, `kazkar`, `kalendar`, `gallery`) exposes:
 
-#### Ci Agent (Orchestrator)
-- `GET /api/ci/health` - Health status
-- `GET /api/ci/state` - Current state
-- `POST /api/ci/orchestrate` - Trigger orchestration
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/agents/{agent}/status` | GET | ❌ | Agent status |
+| `/api/agents/{agent}` | POST | ✅ | Send message to agent |
 
-#### Podiya Agent (Events)
-- `GET /api/podiya/health` - Health status
-- `GET /api/podiya/state` - Current state
-- `POST /api/podiya/event` - Create event
-  ```json
-  {
-    "type": "user_action",
-    "data": { "action": "click", "target": "button" }
-  }
-  ```
+---
 
-#### Nastriy Agent (Mood)
-- `GET /api/nastriy/health` - Health status
-- `POST /api/nastriy/mood` - Update mood
-  ```json
-  {
-    "mood": "happy",
-    "score": 0.8
-  }
-  ```
+## 📈 Production Monitoring
 
-#### Malya Agent (Ideas)
-- `GET /api/malya/health` - Health status
-- `POST /api/malya/idea` - Add idea
-  ```json
-  {
-    "content": "Нова ідея для проєкту"
-  }
-  ```
+### Health Check Utility
 
-#### Kazkar Agent (Stories)
-- `GET /api/kazkar/health` - Health status
-- `POST /api/kazkar/story` - Add story
-  ```json
-  {
-    "title": "Назва історії",
-    "content": "Зміст історії..."
-  }
-  ```
+`src/lib/health-check.ts` exposes two functions:
 
-#### Kalendar Agent (Time)
-- `GET /api/kalendar/health` - Health status
-- `POST /api/kalendar/schedule` - Schedule event
-  ```json
-  {
-    "time": 1708249200000,
-    "description": "Зустріч о 15:00"
-  }
-  ```
+```typescript
+import { getHealthStatus, verifyDeployment } from './lib/health-check';
 
-#### Gallery Agent (Media)
-- `GET /api/gallery/health` - Health status
-- `POST /api/gallery/upload` - Upload file (to be implemented)
+// Get current health (probes KV, D1, Analytics)
+const health = await getHealthStatus(env);
+// → { status: 'UP', checks: { kv, analytics, database }, ... }
+
+// Verify all agent endpoints are reachable after deployment
+const verification = await verifyDeployment(env);
+// → { ok: true, agentsReachable: [...], agentsFailed: [] }
+```
+
+### Monitoring Utility
+
+`src/lib/monitoring.ts` exposes:
+
+```typescript
+import {
+  logMetric,
+  reportError,
+  reportAgentStatus,
+  reportEndpointMetric,
+  alert
+} from './lib/monitoring';
+
+// Custom metric
+await logMetric(env, 'my_metric', 42, { tag: 'value' });
+
+// Endpoint latency
+await reportEndpointMetric(env, '/api/health', 'GET', 200, 12);
+
+// Agent uptime + error count
+await reportAgentStatus(env, 'ci', uptimeSeconds, errorCount);
+
+// High-priority alert (persisted to KV + Analytics)
+await alert(env, 'Database connection timeout', 'critical');
+```
+
+### Viewing Metrics
+
+- Cloudflare Dashboard → Workers & Pages → cimeika-backend → **Analytics Engine**
+- Last alert stored in KV key `last_alert` (expires after 24 h)
+
+### Deployment Runbook
+
+**Regular deploy:**
+```bash
+npm run deploy
+curl https://cimeika-backend.workers.dev/api/health
+```
+
+**Rollback:**
+```bash
+# List recent deployments
+wrangler deployments list
+# Roll back to a specific deployment
+wrangler rollback <deployment-id>
+```
+
+**Emergency – disable auth:**
+```bash
+# Temporarily allow all requests (removes AUTH middleware)
+# Edit src/index.ts → remove createAuthMiddleware() line → redeploy
+```
 
 ---
 
 ## 🔐 Authentication
 
-Protected endpoints (all except `/` and `/api/health`) require authentication:
+Protected endpoints require a Bearer token:
 
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  https://cimeika-backend.workers.dev/api/ci/state
+  https://cimeika-backend.workers.dev/api/agents/ci
 ```
 
-To create a token, add it to the AUTH_TOKENS KV namespace:
-
+Add tokens to AUTH_TOKENS KV:
 ```bash
-wrangler kv:key put --binding=AUTH_TOKENS "your-token-here" \
-  '{"user":"admin","created":1708249200000}'
+wrangler kv:key put --binding=AUTH_TOKENS "your-token" \
+  '{"user":"admin","created":"2026-02-19T00:00:00.000Z"}'
 ```
-
----
-
-## 📈 Monitoring
-
-### Health Checks
-
-The GitHub Action `health-check.yml` monitors the backend every 5 minutes.
-
-To manually check all agents:
-
-```bash
-# Check system health
-curl https://cimeika-backend.workers.dev/api/health
-
-# Check each agent
-for agent in ci podiya nastriy malya kazkar kalendar gallery; do
-  echo "Checking $agent..."
-  curl https://cimeika-backend.workers.dev/api/$agent/health
-done
-```
-
-### Analytics
-
-View analytics in Cloudflare Dashboard:
-- Workers & Pages → cimeika-backend → Analytics Engine
 
 ---
 
 ## 🛠️ Local Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Start local dev server
 npm run dev
-
-# In another terminal, test locally
+# In another terminal:
 curl http://localhost:8787/api/health
 ```
 
@@ -268,15 +225,12 @@ curl http://localhost:8787/api/health
 
 ## 📝 Database Schema
 
-The D1 database includes these tables:
-
-- `users` - User accounts
-- `agent_states` - Persistent agent states
-- `events` - Inter-agent communication log
-- `analytics` - Analytics events
-- `health_checks` - Health check history
-
-View data:
+Tables in D1 (`cimeika`):
+- `users` – User accounts
+- `agent_states` – Persistent agent states
+- `events` – Inter-agent communication log
+- `analytics` – Analytics events
+- `health_checks` – Health check history
 
 ```bash
 wrangler d1 execute cimeika --command "SELECT * FROM agent_states"
@@ -286,87 +240,39 @@ wrangler d1 execute cimeika --command "SELECT * FROM agent_states"
 
 ## ✅ Success Criteria
 
-Verify all these are working:
-
-- [ ] `GET /api/health` returns 200 OK
-- [ ] All 7 agents respond to `/health` endpoint
-- [ ] Database queries work (check health endpoint)
-- [ ] KV namespaces are accessible
-- [ ] Rate limiting works (>100 requests/min gets 429)
-- [ ] CORS headers present on responses
-- [ ] GitHub Actions deploy successfully
-- [ ] Health check workflow runs without errors
+- [ ] `GET /api/health` returns `{ "status": "UP" }`
+- [ ] All 7 agents respond to `/api/agents/{agent}/status`
+- [ ] `getHealthStatus()` reports `checks.kv = true`
+- [ ] `getHealthStatus()` reports `checks.database = true`
+- [ ] Rate limiting returns 429 after >100 req/min
+- [ ] CORS headers present on all responses
+- [ ] GitHub Actions deploy workflow succeeds
+- [ ] Health check workflow runs every 5 minutes
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Issue: "Durable Object binding not found"
+### "Durable Object binding not found"
+Ensure all 7 DO bindings are in `wrangler.jsonc` and redeploy.
 
-Solution: Ensure `wrangler.jsonc` has all 7 Durable Object bindings and redeploy.
-
-### Issue: "Database query failed"
-
-Solution: Initialize the schema:
+### "Database query failed"
 ```bash
 wrangler d1 execute cimeika --file=./src/lib/db-schema.sql
 ```
 
-### Issue: "KV namespace not found"
+### "KV namespace not found"
+Create namespaces and update `wrangler.jsonc` with correct IDs.
 
-Solution: Create namespaces and update `wrangler.jsonc` with the correct IDs.
+### Health check shows `checks.kv = false`
+Verify KV namespace IDs match `wrangler.jsonc`. Check `wrangler kv:namespace list`.
 
-### Issue: "Rate limit error in logs"
-
-Solution: This is expected behavior. The rate limit is set to 100 requests/minute.
-
----
-
-## 📚 Next Steps
-
-1. **Add authentication tokens** to AUTH_TOKENS KV
-2. **Test all agent endpoints** with Postman or curl
-3. **Monitor logs** in Cloudflare Dashboard
-4. **Set up custom domain** (optional)
-5. **Configure webhooks** for GitHub integration
-6. **Add more tests** for comprehensive coverage
+### Health check shows `checks.database = false`
+Run the schema migration and verify D1 database ID in `wrangler.jsonc`.
 
 ---
 
-## 🎯 Architecture Overview
+**Status:** ✅ Ready for Deployment  
+**Version:** 0.1.0  
+**Last Updated:** 2026-02-19
 
-```
-┌─────────────────────────────────────────┐
-│         Cloudflare Workers Edge         │
-│                                         │
-│  ┌───────────────────────────────────┐  │
-│  │      Hono App (src/index.ts)     │  │
-│  │  - CORS, Rate Limit, Logging     │  │
-│  └───────────────────────────────────┘  │
-│                  │                       │
-│     ┌────────────┴────────────┐         │
-│     │    7 Durable Objects    │         │
-│     │                          │         │
-│  ┌──▼──┐ ┌──────┐ ┌──────┐   │         │
-│  │ Ci  │ │Podiya│ │Nastriy│  │         │
-│  └─────┘ └──────┘ └──────┘   │         │
-│  ┌─────┐ ┌──────┐ ┌──────┐   │         │
-│  │Malya│ │Kazkar│ │Kalend│   │         │
-│  └─────┘ └──────┘ └──────┘   │         │
-│  ┌─────────┐                  │         │
-│  │ Gallery │                  │         │
-│  └─────────┘                  │         │
-│                                         │
-│  Storage:                               │
-│  - KV (CONFIG, AUTH_TOKENS)            │
-│  - D1 (cimeika database)               │
-│  - R2 (cimeika-files bucket)           │
-│  - Analytics Engine                     │
-└─────────────────────────────────────────┘
-```
-
----
-
-**Status:** ✅ Ready for Deployment
-**Version:** 0.1.0
-**Last Updated:** 2026-02-18
