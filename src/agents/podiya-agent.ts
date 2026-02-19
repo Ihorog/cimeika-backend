@@ -92,25 +92,6 @@ export class PodiyaAgent extends BaseAgent {
     const action = message.payload?.action;
 
     switch (action) {
-      case 'create_event': {
-        const { type, data } = message.payload;
-        return {
-          success: true,
-          event_id: message.id,
-          type,
-          data,
-          message: 'Подію створено',
-          timestamp: new Date().toISOString(),
-        };
-      }
-
-      case 'list_events':
-        return {
-          events: [],
-          message: 'Список подій',
-          timestamp: new Date().toISOString(),
-        };
-
       case 'create-event': {
         const id = crypto.randomUUID();
         await this.executeDB(

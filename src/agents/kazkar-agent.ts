@@ -95,25 +95,6 @@ export class KazkarAgent extends BaseAgent {
     const action = message.payload?.action;
 
     switch (action) {
-      case 'add_story': {
-        const { title, content } = message.payload;
-        return {
-          success: true,
-          story_id: message.id,
-          title,
-          content,
-          message: 'Історію додано',
-          timestamp: new Date().toISOString(),
-        };
-      }
-
-      case 'list_stories':
-        return {
-          stories: [],
-          message: 'Список історій',
-          timestamp: new Date().toISOString(),
-        };
-
       case 'create-story': {
         const { title, content, tags } = message.payload;
         const id = crypto.randomUUID();
