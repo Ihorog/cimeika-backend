@@ -1,8 +1,8 @@
 # CIMEIKA Backend - Project Status
 
-**Last Updated:** 2026-02-18  
+**Last Updated:** 2026-02-19  
 **Version:** 0.1.0  
-**Status:** ✅ **IMPLEMENTATION COMPLETE - READY FOR DEPLOYMENT**
+**Status:** ✅ **IMPLEMENTATION COMPLETE – MONITORING ACTIVE**
 
 ---
 
@@ -10,12 +10,14 @@
 
 | Aspect | Status | Details |
 |--------|--------|---------|
-| **Code Implementation** | ✅ Complete | 37 files, ~2800 lines |
+| **Code Implementation** | ✅ Complete | 7 agents, monitoring, health checks |
 | **TypeScript Compilation** | ✅ Passing | 0 errors, strict mode |
-| **Tests** | ✅ Passing | 18/18 tests |
-| **Documentation** | ✅ Complete | 4 comprehensive docs |
+| **Tests** | ✅ Passing | All tests passing |
+| **Documentation** | ✅ Complete | README, DEPLOYMENT, CONTRIBUTING, STATUS, IMPLEMENTATION |
 | **CI/CD** | ✅ Configured | 3 GitHub Actions workflows |
-| **Deployment** | ⏳ Pending | Awaiting user setup |
+| **Health Checks** | ✅ Ready | `getHealthStatus`, `verifyDeployment` |
+| **Monitoring** | ✅ Ready | `logMetric`, `reportError`, `reportEndpointMetric`, `alert` |
+| **Deployment** | ⏳ Pending | Awaiting user Cloudflare resources |
 
 ---
 
@@ -26,36 +28,36 @@
 - [x] BaseAgent abstract class with KV/DB/R2/Analytics methods
 - [x] Complete type definitions (TypeScript strict mode)
 - [x] Middleware chain (CORS, Auth, Rate Limit, Logging)
-- [x] 17 API endpoints with routers
+- [x] API endpoints: `/api/health`, `/api/status`, `/api/manifest`, agent stubs
 - [x] Database schema (D1 with 5 tables, 7 indexes)
 - [x] Integration wrappers (GitHub, OpenAI, HuggingFace, Vercel)
 - [x] Utility functions and constants
-- [x] Main Hono application
 
-### ✅ Testing & Quality
-- [x] Unit tests for all agents
-- [x] Router tests
-- [x] TypeScript strict mode passing
-- [x] All compilation errors fixed
+### ✅ Monitoring & Health (F6–F7)
+- [x] `src/lib/health-check.ts` – `getHealthStatus(env)`, `verifyDeployment(env)`
+  - Probes KV, D1, and Analytics Engine
+  - Returns structured `HealthStatus` with per-service checks
+  - `verifyDeployment` pings all 7 agent status endpoints
+- [x] `src/lib/monitoring.ts` – `logMetric`, `reportError`, `reportAgentStatus`, `reportEndpointMetric`, `alert`
+  - `reportEndpointMetric` – records per-request latency and HTTP status
+  - `alert` – persists critical alerts to KV (`last_alert`) + Analytics Engine
 
 ### ✅ DevOps
 - [x] GitHub Actions deployment workflow
-- [x] GitHub Actions test workflow  
-- [x] GitHub Actions health check workflow
+- [x] GitHub Actions test workflow
+- [x] GitHub Actions health check workflow (every 5 min)
 - [x] Wrangler configuration complete
 
-### ✅ Documentation
-- [x] README.md (project overview)
-- [x] DEPLOYMENT.md (deployment guide)
-- [x] IMPLEMENTATION.md (technical summary)
-- [x] .env.example (environment template)
-- [x] COPILOT.md (dev guidelines)
+### ✅ Documentation (G1–G5)
+- [x] `README.md` – project overview, agents list, monitoring section
+- [x] `DEPLOYMENT.md` – deployment steps, runbook, monitoring utilities docs
+- [x] `CONTRIBUTING.md` – contribution guidelines with monitoring section
+- [x] `STATUS.md` – this file
+- [x] `IMPLEMENTATION.md` – updated technical summary
 
 ---
 
 ## ⏳ What's Pending (USER ACTION REQUIRED)
-
-### Step-by-Step Deployment
 
 1. **Login to Cloudflare**
    ```bash
@@ -72,6 +74,7 @@
 3. **Create D1 Database**
    ```bash
    wrangler d1 create cimeika
+   wrangler d1 execute cimeika --file=./src/lib/db-schema.sql
    ```
    ➡️ Update `wrangler.jsonc` with the database ID
 
@@ -88,25 +91,14 @@
    wrangler secret put VERCEL_TOKEN
    ```
 
-6. **Deploy to Cloudflare**
+6. **Deploy**
    ```bash
    npm run deploy
+   curl https://cimeika-backend.workers.dev/api/health
    ```
 
-7. **Initialize Database**
-   ```bash
-   wrangler d1 execute cimeika --file=./src/lib/db-schema.sql
-   ```
-
-8. **Configure GitHub Secrets**
-   - Go to repository Settings → Secrets → Actions
-   - Add `CLOUDFLARE_API_TOKEN`
-   - Add `CLOUDFLARE_ACCOUNT_ID`
-
-9. **Verify Deployment**
-   ```bash
-   curl https://cimeika-backend.YOUR-WORKER.workers.dev/api/health
-   ```
+7. **Configure GitHub Secrets**
+   - Settings → Secrets → Actions → `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
 ---
 
@@ -114,14 +106,12 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Files | 37 |
-| Lines of Code | ~2,800 |
 | Agents | 7 |
-| API Endpoints | 17 |
+| API Endpoints | 17+ |
 | Middleware | 4 |
 | Integrations | 4 |
 | Database Tables | 5 |
-| Tests | 18 |
+| Monitoring Functions | 5 |
 | Workflows | 3 |
 
 ---
@@ -133,21 +123,15 @@ Cloudflare Workers Edge
     ↓
 Hono App (src/index.ts)
     ↓
-Middleware Chain
-    ├── CORS
-    ├── Logging
-    ├── Rate Limit
-    └── Auth
+Middleware Chain (CORS → Logging → Rate Limit → Auth)
     ↓
-Routers (7 agents)
+API Routes (/api/health, /api/status, /api/agents/*)
     ↓
 Durable Objects (7 agents)
     ↓
-Storage Layer
-    ├── KV (CONFIG, AUTH_TOKENS)
-    ├── D1 (cimeika database)
-    ├── R2 (cimeika-files)
-    └── Analytics Engine
+Storage Layer (KV, D1, R2, Analytics Engine)
+    ↓
+Monitoring (src/lib/monitoring.ts + health-check.ts)
 ```
 
 ---
@@ -156,61 +140,30 @@ Storage Layer
 
 | File | Purpose |
 |------|---------|
-| `DEPLOYMENT.md` | Step-by-step deployment instructions |
+| `src/lib/health-check.ts` | `getHealthStatus`, `verifyDeployment` |
+| `src/lib/monitoring.ts` | `logMetric`, `reportEndpointMetric`, `alert` |
+| `DEPLOYMENT.md` | Deployment instructions + runbook |
 | `IMPLEMENTATION.md` | Complete technical documentation |
 | `README.md` | Project overview and setup |
 | `wrangler.jsonc` | Cloudflare Workers configuration |
 | `src/index.ts` | Main application entry point |
-| `src/lib/db-schema.sql` | Database schema |
-| `.env.example` | Environment variables template |
 
 ---
 
 ## 🚀 Quick Commands
 
 ```bash
-# Development
 npm install           # Install dependencies
 npm run dev          # Start local dev server
 npm run types        # Type checking
 npm test             # Run tests
-
-# Deployment
-wrangler login       # Login to Cloudflare
 npm run deploy       # Deploy to production
-
-# Testing deployed app
-curl https://cimeika-backend.YOUR-WORKER.workers.dev/
-curl https://cimeika-backend.YOUR-WORKER.workers.dev/api/health
-curl https://cimeika-backend.YOUR-WORKER.workers.dev/api/status
+curl https://cimeika-backend.workers.dev/api/health
+curl https://cimeika-backend.workers.dev/api/status
 ```
 
 ---
 
-## 📞 Need Help?
-
-1. **Deployment Issues:** See `DEPLOYMENT.md` → Troubleshooting section
-2. **Technical Details:** See `IMPLEMENTATION.md`
-3. **Development Guidelines:** See `.github/COPILOT.md`
-4. **Setup Questions:** See `README.md`
-
----
-
-## ✅ Success Checklist
-
-After deployment, verify:
-
-- [ ] `GET /api/health` returns 200 with `"status": "healthy"`
-- [ ] All 7 agents respond to `/api/{agent}/health`
-- [ ] Database connection works (health check shows `"database": true`)
-- [ ] KV namespaces accessible
-- [ ] Rate limiting works (test with >100 requests)
-- [ ] CORS headers present in responses
-- [ ] GitHub Actions workflows succeed
-- [ ] Health check workflow runs without errors
-
----
-
-**Current Status:** ✅ Code complete, ready for deployment  
+**Current Status:** ✅ Code complete with monitoring, ready for deployment  
 **Next Step:** Follow DEPLOYMENT.md step-by-step guide  
-**Expected Time:** 15-30 minutes for full deployment
+**Expected Time:** 15–30 minutes for full deployment
