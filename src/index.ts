@@ -156,6 +156,22 @@ app.route('/api/agents/kalendar', kalendarRouter);
 app.route('/api/agents/gallery', galleryRouter);
 
 // ============================================
+// WEBSOCKET ENDPOINT (Real-time agent updates)
+// ============================================
+
+/**
+ * WebSocket endpoint — proxies to CiAgent Durable Object
+ * Clients receive real-time status updates from the orchestrator
+ */
+app.get('/api/agents/ci/ws', async (c) => {
+  if (c.req.header('Upgrade') !== 'websocket') {
+    return c.json({ error: 'Очікується WebSocket-з\'єднання' }, 426);
+  }
+  const stub = c.env.CI_AGENT.get(c.env.CI_AGENT.idFromName('ci-agent'));
+  return stub.fetch(c.req.raw);
+});
+
+// ============================================
 // GENERATIVE AI ROUTES (Phase 2)
 // ============================================
 

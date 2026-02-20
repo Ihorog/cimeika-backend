@@ -123,6 +123,62 @@ describe('CiAgent', () => {
 
     expect(res.status).toBe(404);
   });
+
+  it('should set up WebSocket session when receiving upgrade request', async () => {
+    const mockServer = {
+      accept: vi.fn(),
+      send: vi.fn(),
+      addEventListener: vi.fn(),
+    };
+    const MockWebSocketPair = vi.fn().mockImplementation(() => ({
+      0: {},
+      1: mockServer,
+    }));
+    vi.stubGlobal('WebSocketPair', MockWebSocketPair);
+
+    const req = new Request('https://agent/', {
+      headers: { Upgrade: 'websocket' },
+    });
+    // In the Cloudflare runtime this returns 101; in the Node.js test environment
+    // the CF-specific `new Response(null, { webSocket })` throws, but the WebSocket
+    // accept/send calls complete before that, so we validate them here.
+    await agent.fetch(req);
+
+    expect(MockWebSocketPair).toHaveBeenCalled();
+    expect(mockServer.accept).toHaveBeenCalled();
+    expect(mockServer.send).toHaveBeenCalledWith(
+      expect.stringContaining('"type":"connected"')
+    );
+
+    vi.unstubAllGlobals();
+  });
+
+  it('broadcastToWebSockets sends to all connected sessions', async () => {
+    const mockServer = {
+      accept: vi.fn(),
+      send: vi.fn(),
+      addEventListener: vi.fn(),
+    };
+    const MockWebSocketPair = vi.fn().mockImplementation(() => ({
+      0: {},
+      1: mockServer,
+    }));
+    vi.stubGlobal('WebSocketPair', MockWebSocketPair);
+
+    const req = new Request('https://agent/', {
+      headers: { Upgrade: 'websocket' },
+    });
+    // Session is registered into wsSessions before the CF-specific Response throw
+    await agent.fetch(req);
+    mockServer.send.mockClear();
+
+    agent.broadcastToWebSockets({ type: 'update', status: 'ready' });
+    expect(mockServer.send).toHaveBeenCalledWith(
+      JSON.stringify({ type: 'update', status: 'ready' })
+    );
+
+    vi.unstubAllGlobals();
+  });
 });
 
 describe('PodiyaAgent', () => {
