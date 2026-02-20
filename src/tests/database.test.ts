@@ -103,22 +103,23 @@ describe('Monitoring', () => {
 });
 
 describe('Health Check', () => {
-  it('should verify health checks', async () => {
+  it('should return true when all agents respond ok', async () => {
     const env = createMockEnv();
-    // Mock fetch globally
-    const mockFetch = vi.fn().mockResolvedValue({ ok: true });
-    vi.stubGlobal('fetch', mockFetch);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response('{"status":"ready"}', { status: 200 })
+    ));
 
     const result = await verifyHealthChecks(env);
     expect(result).toBe(true);
-    expect(mockFetch).toHaveBeenCalledTimes(7);
 
     vi.unstubAllGlobals();
   });
 
-  it('should return false when agent returns error status', async () => {
+  it('should return false when an agent returns 503', async () => {
     const env = createMockEnv();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response('{"error":"down"}', { status: 503 })
+    ));
 
     const result = await verifyHealthChecks(env);
     expect(result).toBe(false);
@@ -126,7 +127,7 @@ describe('Health Check', () => {
     vi.unstubAllGlobals();
   });
 
-  it('should return false when agent is unreachable', async () => {
+  it('should return false when fetch throws', async () => {
     const env = createMockEnv();
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 

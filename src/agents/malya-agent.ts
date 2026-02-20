@@ -93,26 +93,6 @@ export class MalyaAgent extends BaseAgent {
     const action = message.payload?.action;
 
     switch (action) {
-      case 'add_idea': {
-        const { content, tags, category } = message.payload;
-        return {
-          success: true,
-          idea_id: message.id,
-          content,
-          tags,
-          category,
-          message: 'Ідею додано',
-          timestamp: new Date().toISOString(),
-        };
-      }
-
-      case 'list_ideas':
-        return {
-          ideas: [],
-          message: 'Список ідей',
-          timestamp: new Date().toISOString(),
-        };
-
       case 'add-idea': {
         const { title, description } = message.payload;
         const id = crypto.randomUUID();
