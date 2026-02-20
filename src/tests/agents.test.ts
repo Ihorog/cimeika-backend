@@ -6,6 +6,8 @@ import { MalyaAgent } from '../agents/malya-agent';
 import { KazkarAgent } from '../agents/kazkar-agent';
 import { KalendarAgent } from '../agents/kalendar-agent';
 import { GalleryAgent } from '../agents/gallery-agent';
+import { getAvailableGenerators, generateImage, generateText } from '../services/perchance';
+import { generateR2Key } from '../services/r2-stream';
 import type { AgentMessage } from '../types/agents';
 
 /**
@@ -294,5 +296,100 @@ describe('GalleryAgent', () => {
     expect(result.success).toBe(true);
     expect(result.data?.filename).toBe('photo.jpg');
     expect(result.data?.message).toBe('Файл завантажено');
+  });
+
+  it('should return error for generateImage when Perchance is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    const result = await agent.generateImage({ prompt: 'test prompt' });
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('KazkarAgent generateStory', () => {
+  let agent: KazkarAgent;
+
+  beforeEach(() => {
+    agent = new KazkarAgent(createMockState(), createMockEnv() as any);
+  });
+
+  it('should return error for generateStory when Perchance is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    const result = await agent.generateStory({ prompt: 'tell me a story' });
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('Perchance Service', () => {
+  it('should return all available generators', () => {
+    const generators = getAvailableGenerators();
+    expect(typeof generators).toBe('object');
+    expect(generators['ai-anime-generator']).toBeDefined();
+    expect(generators['ai-text']).toBeDefined();
+    expect(Object.keys(generators).length).toBe(6);
+  });
+
+  it('should return failure when Perchance image API is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    const result = await generateImage('a beautiful sunset', 'ai-anime-generator');
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.generator).toBe('ai-anime-generator');
+    expect(result.prompt).toBe('a beautiful sunset');
+    vi.unstubAllGlobals();
+  });
+
+  it('should return failure when Perchance text API is unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    const result = await generateText('once upon a time');
+    expect(result.success).toBe(false);
+    expect(result.error).toBeDefined();
+    expect(result.generator).toBe('ai-text');
+    expect(result.prompt).toBe('once upon a time');
+    vi.unstubAllGlobals();
+  });
+
+  it('should return success when Perchance image API responds correctly', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ url: 'https://example.com/image.jpg' }),
+      })
+    );
+    const result = await generateImage('anime girl', 'ai-anime-generator');
+    expect(result.success).toBe(true);
+    expect(result.imageUrl).toBe('https://example.com/image.jpg');
+    vi.unstubAllGlobals();
+  });
+
+  it('should return success when Perchance text API responds correctly', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ text: 'Once upon a time...' }),
+      })
+    );
+    const result = await generateText('a fantasy story');
+    expect(result.success).toBe(true);
+    expect(result.text).toBe('Once upon a time...');
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('R2 Stream Service', () => {
+  it('should generate a valid R2 key', () => {
+    const key = generateR2Key('gallery', 'jpg');
+    expect(key).toMatch(/^gallery\/\d+-[0-9a-f-]+-[0-9a-f-]+\.jpg$/);
+  });
+
+  it('should generate unique keys for same prefix and extension', () => {
+    const key1 = generateR2Key('gallery', 'jpg');
+    const key2 = generateR2Key('gallery', 'jpg');
+    expect(key1).not.toBe(key2);
   });
 });

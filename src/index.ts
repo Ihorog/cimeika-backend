@@ -27,6 +27,8 @@ import malyaRouter from './routers/malya';
 import kazkarRouter from './routers/kazkar';
 import kalendarRouter from './routers/kalendar';
 import galleryRouter from './routers/gallery';
+import galleryGenerateRouter from './routers/gallery-generate';
+import storyGenerateRouter from './routers/story-generate';
 
 // ============================================
 // CREATE HONO APP
@@ -152,6 +154,13 @@ app.route('/api/agents/malya', malyaRouter);
 app.route('/api/agents/kazkar', kazkarRouter);
 app.route('/api/agents/kalendar', kalendarRouter);
 app.route('/api/agents/gallery', galleryRouter);
+
+// ============================================
+// GENERATIVE AI ROUTES (Phase 2)
+// ============================================
+
+app.route('/api/v1/gallery', galleryGenerateRouter);
+app.route('/api/v1/story', storyGenerateRouter);
 
 // ============================================
 // 404 HANDLER
