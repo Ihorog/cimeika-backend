@@ -6,6 +6,8 @@
 import { BaseAgent } from './base-agent';
 import type { Env } from '../types/env';
 import type { AgentMessage } from '../types/agents';
+import { generateImage, type PerchanceGenerator } from '../services/perchance';
+import { uploadToR2, generateR2Key } from '../services/r2-stream';
 
 export class GalleryAgent extends BaseAgent {
   constructor(state: DurableObjectState, env: Env) {
@@ -154,6 +156,41 @@ export class GalleryAgent extends BaseAgent {
           timestamp: new Date().toISOString(),
         };
     }
+  }
+
+  /**
+   * Generate an image via Perchance and upload it to R2
+   */
+  async generateImage(payload: {
+    prompt: string;
+    generator?: PerchanceGenerator;
+  }): Promise<Record<string, unknown>> {
+    const { prompt, generator = 'ai-anime-generator' } = payload;
+
+    const imageResult = await generateImage(prompt, generator);
+    if (!imageResult.success) {
+      return { success: false, error: imageResult.error, timestamp: new Date().toISOString() };
+    }
+
+    let key = imageResult.imageUrl ?? '';
+    if (imageResult.imageData) {
+      key = generateR2Key('gallery', 'jpg');
+      const binary = Uint8Array.from(atob(imageResult.imageData), (ch) => ch.charCodeAt(0));
+      await uploadToR2(this.env, binary.buffer as ArrayBuffer, {
+        key,
+        contentType: 'image/jpeg',
+        cacheControl: 'public, max-age=31536000',
+      });
+    }
+
+    return {
+      success: true,
+      key,
+      prompt,
+      generator,
+      message: 'Зображення згенеровано',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   private async handleIncomingMessage(request: Request): Promise<Response> {

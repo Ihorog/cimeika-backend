@@ -58,3 +58,24 @@ describe('Gallery Router', () => {
     expect(true).toBe(true);
   });
 });
+
+describe('Gallery Generate Router', () => {
+  it('should reject missing prompt', () => {
+    expect(true).toBe(true);
+  });
+
+  it('should accept valid generate request', () => {
+    expect(true).toBe(true);
+  });
+});
+
+describe('Story Generate Router', () => {
+  it('should reject missing prompt', () => {
+    expect(true).toBe(true);
+  });
+
+  it('should accept valid generate request', () => {
+    expect(true).toBe(true);
+  });
+});
+

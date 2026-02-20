@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS stories (
   title TEXT NOT NULL,
   content TEXT NOT NULL,
   tags TEXT,
+  prompt TEXT,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
   updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
 );
@@ -89,6 +90,16 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   description TEXT,
   created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
 );
+
+-- Gallery items (generated via Perchance)
+CREATE TABLE IF NOT EXISTS gallery_items (
+  id TEXT PRIMARY KEY,
+  url TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  generator TEXT NOT NULL DEFAULT 'ai-anime-generator',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_gallery_created ON gallery_items(created_at);
 
 -- Indexes for new tables
 CREATE INDEX IF NOT EXISTS idx_mood_created ON mood_entries(created_at);

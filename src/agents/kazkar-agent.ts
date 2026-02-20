@@ -6,6 +6,7 @@
 import { BaseAgent } from './base-agent';
 import type { Env } from '../types/env';
 import type { AgentMessage } from '../types/agents';
+import { generateText } from '../services/perchance';
 
 export class KazkarAgent extends BaseAgent {
   constructor(state: DurableObjectState, env: Env) {
@@ -159,6 +160,42 @@ export class KazkarAgent extends BaseAgent {
           timestamp: new Date().toISOString(),
         };
     }
+  }
+
+  /**
+   * Generate a story via Perchance and persist it to D1
+   */
+  async generateStory(payload: {
+    prompt: string;
+    maxLength?: number;
+    temperature?: number;
+  }): Promise<Record<string, unknown>> {
+    const { prompt, maxLength, temperature } = payload;
+
+    const textResult = await generateText(prompt, { maxLength, temperature });
+    if (!textResult.success) {
+      return { success: false, error: textResult.error, timestamp: new Date().toISOString() };
+    }
+
+    const id = crypto.randomUUID();
+    const content = textResult.text ?? '';
+    const title = prompt.slice(0, 80);
+    const now = Date.now();
+
+    await this.executeDB(
+      'INSERT INTO stories (id, title, content, prompt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, title, content, prompt, now, now]
+    );
+
+    return {
+      success: true,
+      story_id: id,
+      title,
+      content,
+      prompt,
+      message: 'Легенду згенеровано',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   private async handleIncomingMessage(request: Request): Promise<Response> {

@@ -90,6 +90,7 @@ export async function initializeDatabase(env: Env): Promise<void> {
         title TEXT NOT NULL,
         content TEXT NOT NULL,
         tags TEXT,
+        prompt TEXT,
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
         updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
       );
@@ -103,6 +104,16 @@ export async function initializeDatabase(env: Env): Promise<void> {
         description TEXT,
         created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
       );
+
+      -- Gallery items (generated via Perchance)
+      CREATE TABLE IF NOT EXISTS gallery_items (
+        id TEXT PRIMARY KEY,
+        url TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        generator TEXT NOT NULL DEFAULT 'ai-anime-generator',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_gallery_created ON gallery_items(created_at);
     `;
 
     // Execute schema
