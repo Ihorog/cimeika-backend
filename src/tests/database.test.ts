@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { initializeDatabase } from '../lib/db-init';
 import { runMigrations } from '../lib/migrations';
-import { logMetric, reportError, reportAgentStatus } from '../lib/monitoring';
+import { logMetric, reportError, reportAgentStatus, reportEndpointMetric } from '../lib/monitoring';
 import { verifyHealthChecks } from '../lib/health-check';
 import type { Env } from '../types';
 
@@ -98,6 +98,12 @@ describe('Monitoring', () => {
   it('should report agent status', async () => {
     const env = createMockEnv();
     await reportAgentStatus(env, 'ci', 100, 0);
+    expect(env.ANALYTICS.writeDataPoint).toHaveBeenCalled();
+  });
+
+  it('should report endpoint metric', async () => {
+    const env = createMockEnv();
+    await reportEndpointMetric(env, '/api/health', 'GET', 200, 12);
     expect(env.ANALYTICS.writeDataPoint).toHaveBeenCalled();
   });
 });

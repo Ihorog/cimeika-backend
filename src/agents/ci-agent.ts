@@ -8,6 +8,9 @@ import { BaseAgent } from './base-agent';
 import type { Env, AgentMessage } from '../types';
 
 export class CiAgent extends BaseAgent {
+  /** Active WebSocket sessions for real-time updates */
+  private wsSessions: WebSocket[] = [];
+
   constructor(state: DurableObjectState, env: Env) {
     super(state, env, 'ci');
     this.setStatus('ready');
@@ -20,6 +23,11 @@ export class CiAgent extends BaseAgent {
     const url = new URL(request.url);
 
     try {
+      // WebSocket upgrade for real-time agent updates
+      if (request.headers.get('Upgrade') === 'websocket') {
+        return this.handleWebSocketUpgrade();
+      }
+
       // Backward compatibility with /orchestrate endpoint
       if (request.method === 'POST' && url.pathname.endsWith('/orchestrate')) {
         return this.handleOrchestrate();
@@ -57,6 +65,58 @@ export class CiAgent extends BaseAgent {
         500
       );
     }
+  }
+
+  /**
+   * Handle WebSocket upgrade and register the session
+   */
+  private handleWebSocketUpgrade(): Response {
+    const pair = new WebSocketPair();
+    const client = pair[0];
+    const server = pair[1];
+
+    server.accept();
+    this.wsSessions.push(server);
+
+    // Send initial state to newly connected client
+    server.send(JSON.stringify({
+      type: 'connected',
+      agent: 'ci',
+      status: this.agentState.status,
+      timestamp: new Date().toISOString(),
+    }));
+
+    server.addEventListener('message', (event: MessageEvent) => {
+      try {
+        const msg = JSON.parse(String(event.data)) as Record<string, unknown>;
+        if (msg.type === 'ping') {
+          server.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+        }
+      } catch {
+        server.send(JSON.stringify({ type: 'error', message: 'Невірний формат повідомлення' }));
+      }
+    });
+
+    server.addEventListener('close', () => {
+      this.wsSessions = this.wsSessions.filter((ws) => ws !== server);
+    });
+
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /**
+   * Broadcast a message to all connected WebSocket clients
+   */
+  broadcastToWebSockets(data: Record<string, unknown>): void {
+    const payload = JSON.stringify(data);
+    this.wsSessions = this.wsSessions.filter((ws) => {
+      try {
+        ws.send(payload);
+        return true;
+      } catch {
+        return false;
+      }
+    });
   }
 
   /**
