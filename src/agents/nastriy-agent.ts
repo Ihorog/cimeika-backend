@@ -89,26 +89,6 @@ export class NastriyAgent extends BaseAgent {
     const action = message.payload?.action;
 
     switch (action) {
-      case 'update_mood': {
-        const { mood, score, note } = message.payload;
-        return {
-          success: true,
-          mood,
-          score,
-          note,
-          message: 'Настрій оновлено',
-          timestamp: new Date().toISOString(),
-        };
-      }
-
-      case 'get_mood':
-        return {
-          mood: 'neutral',
-          score: 5,
-          message: 'Поточний настрій',
-          timestamp: new Date().toISOString(),
-        };
-
       case 'track-mood': {
         const { mood, score, note } = message.payload;
         const id = crypto.randomUUID();

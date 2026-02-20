@@ -141,8 +141,8 @@ describe('PodiyaAgent', () => {
     expect(body.agent).toBe('podiya');
   });
 
-  it('should process create_event message', async () => {
-    const message = createTestMessage('create_event', {
+  it('should process create-event message', async () => {
+    const message = createTestMessage('create-event', {
       type: 'test-event',
       data: { title: 'Test' },
     });
@@ -169,8 +169,8 @@ describe('NastriyAgent', () => {
     expect(body.agent).toBe('nastriy');
   });
 
-  it('should process update_mood message', async () => {
-    const message = createTestMessage('update_mood', {
+  it('should process track-mood message', async () => {
+    const message = createTestMessage('track-mood', {
       mood: 'happy',
       score: 8,
       note: 'Feeling good',
@@ -199,16 +199,15 @@ describe('MalyaAgent', () => {
     expect(body.agent).toBe('malya');
   });
 
-  it('should process add_idea message', async () => {
-    const message = createTestMessage('add_idea', {
-      content: 'New idea',
-      tags: ['test'],
-      category: 'general',
+  it('should process add-idea message', async () => {
+    const message = createTestMessage('add-idea', {
+      title: 'New idea',
+      description: 'An interesting idea',
     });
     const result = await agent.handleMessage(message);
 
     expect(result.success).toBe(true);
-    expect(result.data?.content).toBe('New idea');
+    expect(result.data?.idea_id).toBeDefined();
     expect(result.data?.message).toBe('Ідею додано');
   });
 });
@@ -229,16 +228,16 @@ describe('KazkarAgent', () => {
     expect(body.agent).toBe('kazkar');
   });
 
-  it('should process add_story message', async () => {
-    const message = createTestMessage('add_story', {
+  it('should process create-story message', async () => {
+    const message = createTestMessage('create-story', {
       title: 'Test Story',
       content: 'Once upon a time...',
     });
     const result = await agent.handleMessage(message);
 
     expect(result.success).toBe(true);
-    expect(result.data?.title).toBe('Test Story');
-    expect(result.data?.message).toBe('Історію додано');
+    expect(result.data?.story_id).toBeDefined();
+    expect(result.data?.message).toBe('Легенду створено');
   });
 });
 
