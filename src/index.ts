@@ -128,7 +128,7 @@ app.get('/api/manifest', (c) => {
         'GET /api/agents/malya/status, POST /api/agents/malya',
         'GET /api/agents/kazkar/status, POST /api/agents/kazkar',
         'GET /api/agents/kalendar/status, POST /api/agents/kalendar',
-        'GET /api/agents/gallery/status, POST /api/agents/gallery'
+        'GET /api/agents/galereya/status, POST /api/agents/galereya (alias: gallery)'
       ]
     },
     agents: {
@@ -154,6 +154,7 @@ app.route('/api/agents/malya', malyaRouter);
 app.route('/api/agents/kazkar', kazkarRouter);
 app.route('/api/agents/kalendar', kalendarRouter);
 app.route('/api/agents/gallery', galleryRouter);
+app.route('/api/agents/galereya', galleryRouter); // canonical alias
 
 // ============================================
 // WEBSOCKET ENDPOINT (Real-time agent updates)
