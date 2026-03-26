@@ -1,0 +1,1 @@
+{  "env": {    "ESLINT_NO_DEV_ERRORS": "true"  },  "extends": [    "plugin:@typescript-eslint/recommended"  ],  "parser": "@typescript-eslint/parser",  "parserOptions": {    "tsconfigRootDir": __dirname,    "project": ['./tsconfig.json'],    "sourceType": "module"  },  "plugins": [    "@typescript-eslint"  ]}
