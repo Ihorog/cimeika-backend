@@ -1,0 +1,7 @@
+repo:
+  repo_id: cimeika_backend
+  repo_name: cimeika-backend
+  visibility: assumed_private_or_managed
+  layer: edge
+  class: workers_runtime
+  status: canonical

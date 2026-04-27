@@ -1,0 +1,15 @@
+repo_id: cimeika_backend
+
+boundaries:
+  allowed:
+    - worker_runtime
+    - edge_execution
+    - agent_runtime
+    - external_event_processing
+    - health_reporting
+
+  not_allowed:
+    - primary_product_ui
+    - canonical_registry_ownership
+    - primary_product_backend
+    - canonical_memory_storage

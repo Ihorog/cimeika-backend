@@ -27,3 +27,9 @@ Thumbs.db
 # Backup files
 *.backup
 *.old
+
+/cimeika-backend/
+
+/cimeika-backend/
+
+/cimeika-backend/

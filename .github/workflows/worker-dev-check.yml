@@ -1,0 +1,17 @@
+name: worker-dev-check
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+jobs:
+  worker-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate worker structure
+        run: |
+          test -f wrangler.jsonc
+          test -d src/agents
+          test -d src/integrations
+          test -d src/lib

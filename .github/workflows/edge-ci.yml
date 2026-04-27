@@ -1,0 +1,36 @@
+name: edge-ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  edge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+      - name: Types
+        run: npm run types --if-present
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Check wrangler config
+        run: test -f wrangler.jsonc
+
+      - name: Check src
+        run: test -d src
