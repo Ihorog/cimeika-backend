@@ -14,3 +14,4 @@
 - primary product UI
 - canonical registry ownership
 - primary product backend
+- canonical memory storage
