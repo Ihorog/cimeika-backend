@@ -8,6 +8,7 @@
 - agents runtime
 - edge execution
 - external event processing
+- health reporting
 
 ## Forbids
 - primary product UI
